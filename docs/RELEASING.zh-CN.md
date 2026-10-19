@@ -1,0 +1,81 @@
+# GPL 客户发布版
+
+[English](RELEASING.md) | 简体中文
+
+所有者已选择让客户执行器采用 GPL-3.0-or-later。信号服务和服务商策略保持独立、私有。
+只发布经过审查的公开导出目录，不要发布本 VM 的整个工作目录、Git 历史、用户主目录、
+验证记录、凭据或交易日志。参阅[源码与构建说明](SOURCE.zh-CN.md)。
+
+## 构建与验证
+
+0.1.11 在 0.1.10 凭据隔离版本的基础上增加源码交付和许可声明。使用 Ubuntu 24.04
+ARM64、CPython 3.12 和 Docker。同步更新 `pyproject.toml`、启动器/测试的默认镜像
+标签和中英文示例中的版本号。旧发布压缩包保持不变。
+
+```bash
+.venv/bin/ruff check .
+bash -n follow follow-container follow-stack install.sh deploy/install-bytecode.sh scripts/*.sh
+.venv/bin/python -m unittest discover -s tests -v
+python3.12 scripts/build-executor-container.py
+python3.12 scripts/test-executor-container.py
+python3.12 scripts/test-executor-isolation.py
+python3.12 scripts/collect-third-party-source.py --image follow-executor:0.1.11
+python3.12 scripts/build-container-kit.py --build dist/executor-container/BUILD.json --third-party dist/third-party/SOURCES.json
+python3.12 scripts/build-source.py --output dist/source --export dist/public-repository
+```
+
+源码导出只读取 `deploy/public-files.txt` 的明确白名单。不包括 Git 历史、本机配置、
+`vendor/`、`dist/`、私有交接文档或任何服务商后台服务。新增应用模块必须加入白名单；
+构建器拒绝遗漏模块。审查每个新加入的文件。不要在 VM 工作目录中用 `git add .`
+来准备公开仓库。
+
+镜像构建使用最小白名单上下文，加入应用许可元数据，并将官方 IBKR 压缩包中的
+LICENSE、NOTICE 和 THIRD_PARTY_LICENSES 保留在最终镜像。不要删除依赖自己的声明。
+依赖收集器使用临时容器，只挂载输出目录，下载准确版本的 Debian、Python 和 API 源码。
+它不会登录 IBKR、连接信号服务或修改宿主机服务。
+
+合并安装包构建器会拒绝过期镜像输入、不匹配的 wheel、错误架构、变化的依赖源码包
+以及不匹配的镜像依赖版本。每个安装包包含匹配的应用源码。wheel 和源码必须来自
+同一份经过审查的文件。还应从解压后的源码运行测试，并比较重新生成的 wheel 哈希。
+
+使用模拟数据进行真实 Docker 凭据隔离及生命周期测试，再使用最终安装包的启动器
+重复隔离检查。验证压缩包校验值、源码哈希、中英文文档链接，以及私有状态未发生变化。
+自动化测试不能证明盈利能力，也不能代替实际未进行过的登录测试。
+
+## 在新的 GitHub 账户上发布
+
+在所有者指定的新账户中创建一个**公开、空白**仓库。导出目录已经包含 LICENSE、README
+和 `.gitignore`，不要在 GitHub 另行生成冲突版本。只上传 `dist/public-repository/`
+内的文件。新仓库以这份审核过的源码为起点，不包含 VM 原有的 Git 历史。
+可以用 GitHub Desktop 发布这个导出文件夹，不需要让它访问 VM 的秘密文件。
+代码没有假定仓库网址。
+
+创建与 0.1.11 对应的 release/tag，上传审核过的以下文件：
+
+- `follow-stack-0.1.11-ubuntu24.04-arm64-cp312.tar.gz`
+- 对应的 `.tar.gz.sha256` 校验文件
+- `follow-executor-0.1.11-source.tar.gz`（安装包内部也包含）
+- `follow-executor-0.1.11-dependencies.tar.gz`
+- 覆盖这些发布文件的 `SHA256SUMS`
+
+在二进制下载旁边免费提供对应源码下载。不能要求已经收到软件的用户续订信号服务，
+才允许他们取得相应源码。不要增加与 GPL 冲突的软件保密、禁止修改或禁止转售条款。
+信号服务访问仍然另行授权；公开源码不会提供订阅令牌或服务商策略。
+
+保留每个发布版的二进制、准确对应的应用/依赖源码包、许可声明和哈希值。更换下载平台
+时也要保持源码可获取。只有来自可信渠道的校验值才能用于确认完整性。
+
+依赖源码包比安装包大，正常安装时不必下载。将它放在 GitHub Release 附件中，不要
+放入 Git 源码目录。邀请客户前检查源码链接和校验值链接。私下交付每个客户的订阅令牌，
+并确认服务商公钥指纹。
+
+## 推广与维护
+
+使用中英文零基础安装指南。先让两到三位模拟账户客户尝试，包括从未使用终端的人。
+每位客户都需要通过自己的就绪检查；安装不会自动开始交易。客户明确启动前，确认
+模式、品种和数量。AI 助手不是必需的。已有安装需要在停止执行器且账户空仓时迁移，
+保留交易日志，并重新生成服务以获得凭据隔离挂载。只加载新镜像还不够。
+
+发布源码不会部署到正在运行的试点，也不会授权实盘交易。原生 Gateway 路径保留给
+已有安装；AMD64 不是支持的客户平台。修改上游 Gateway 摘要需要单独进行登录/恢复
+验收，与源码发布打包检查分开。

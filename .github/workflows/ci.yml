@@ -1,0 +1,25 @@
+name: Tests
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m venv .venv
+      - run: .venv/bin/python -m pip install -e '.[dev]'
+      - run: ./scripts/install-ibapi.sh
+      - run: .venv/bin/ruff check .
+      - run: bash -n follow follow-container follow-stack install.sh deploy/install-bytecode.sh scripts/*.sh
+      - run: .venv/bin/python scripts/build-bytecode.py
+      - run: .venv/bin/python -m pip install --force-reinstall --no-deps dist/bytecode/*.whl
+      - run: .venv/bin/python -I -m unittest discover -s tests -v
+      - run: .venv/bin/python scripts/build-executor-container.py
+      - run: .venv/bin/python scripts/test-executor-container.py
+      - run: .venv/bin/python scripts/test-executor-isolation.py
+      - run: .venv/bin/python scripts/collect-third-party-source.py --image follow-executor:0.1.11
+      - run: .venv/bin/python scripts/build-container-kit.py --build dist/executor-container/BUILD.json --third-party dist/third-party/SOURCES.json

@@ -1,0 +1,191 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Follow Executor contributors
+# Optional Linux executor container. Does not manage Gateway or native services.
+set -euo pipefail
+umask 077
+
+usage() {
+  cat <<'EOF'
+Usage: ./follow-container COMMAND [OPTIONS]
+  install          Pin the local image and install a stopped user service
+  configure        Run the private setup wizard (paper by default)
+  check            Check relay, account, journal and margin while stopped
+  start            Check readiness, then enable and start trading
+  stop             Stop trading and disable autostart; does not close positions
+  status           Read the persistent journal
+  service-status   Show the container service state
+  logs             Follow service logs
+  settings         Change instrument/size while stopped and flat
+  discord          Configure optional notifications
+  watch            Watch signed signals while stopped
+  resume           Request halt recovery; may adopt/close a broker position
+
+Requires Linux, Docker and a systemd user session. Keep Gateway on loopback.
+Config/state use the same XDG paths as ./follow. See docs/EXECUTOR_DOCKER.md.
+FOLLOW_EXECUTOR_IMAGE chooses a locally available image for install.
+EOF
+}
+fail() { printf 'follow-container: %s\n' "$*" >&2; exit 2; }
+action=${1:---help}
+case "$action" in
+  help|--help|-h) usage; exit 0 ;;
+  install|start|stop|status|service-status|logs|configure|check|settings|discord|watch|resume|maintenance-check) ;;
+  *) usage >&2; exit 2 ;;
+esac
+shift
+[[ $(uname -s) == Linux ]] || fail 'This launcher requires Linux host networking.'
+[[ $(id -u) != 0 ]] || fail 'Run as your normal login user, without sudo.'
+command -v docker >/dev/null || fail 'Install Docker first; see docs/EXECUTOR_DOCKER.md.'
+config_base=${XDG_CONFIG_HOME:-"$HOME/.config"}
+state_base=${XDG_STATE_HOME:-"$HOME/.local/state"}
+for base in "$config_base" "$state_base"; do
+  [[ "$base" == /* && "$base" != *$'\n'* && "$base" != *','* && "$base" != *':'* ]] ||
+    fail 'XDG paths must be absolute and contain no newline, comma or colon.'
+done
+config_base=$(readlink -m -- "$config_base")
+state_base=$(readlink -m -- "$state_base")
+for base in "$config_base" "$state_base"; do
+  [[ "$base" != *$'\n'* && "$base" != *','* && "$base" != *':'* ]] ||
+    fail 'Resolved XDG paths must contain no newline, comma or colon.'
+done
+config_dir=$config_base/follow-executor
+state_dir=$state_base/follow-executor
+[[ ! -L "$config_dir" && ! -L "$state_dir" ]] ||
+  fail 'Configuration/state directories must not be symlinks; review the existing paths without resetting history.'
+[[ "$config_dir" != "$state_dir" && "$config_dir" != "$state_dir/"* && "$state_dir" != "$config_dir/"* ]] ||
+  fail 'Configuration and state directories must be separate, non-overlapping paths.'
+mkdir -p -- "$config_dir" "$state_dir"
+# Host-only data: Gateway login files and maintenance backups containing them.
+# Empty, read-only mounts obscure these subtrees in every executor container.
+# Create mountpoints as the login user, not as a side effect of Docker running root.
+for private_dir in "$config_dir/gateway" "$state_dir/maintenance"; do
+  [[ ! -L "$private_dir" ]] || fail 'Gateway and maintenance directories must not be symlinks.'
+  mkdir -p -- "$private_dir"
+done
+config=$config_dir/executor.json
+identity=$(printf '%s' "$config" | sha256sum)
+identity=${identity:0:12}
+container_name=follow-executor-$(id -u)-$identity
+unit=follow-executor-container-$identity.service
+unit_dir=${XDG_CONFIG_HOME:-"$HOME/.config"}/systemd/user
+pin=$state_dir/container.image
+
+runtime=(--pull never --init --user "$(id -u):$(id -g)" --network host
+  --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 128
+  --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m --stop-timeout 45
+  --log-driver local --log-opt max-size=10m --log-opt max-file=3
+  --env "HOME=$HOME" --env "XDG_CONFIG_HOME=$config_base" --env "XDG_STATE_HOME=$state_base"
+  --env "FOLLOW_EXECUTOR_LAUNCHER=${FOLLOW_EXECUTOR_LAUNCHER:-./follow-container}"
+  --mount "type=bind,src=$config_dir,dst=$config_dir,bind-recursive=disabled"
+  --mount "type=bind,src=$state_dir,dst=$state_dir,bind-recursive=disabled"
+  --tmpfs "$config_dir/gateway:ro,noexec,nosuid,nodev,size=64k,mode=0000"
+  --tmpfs "$state_dir/maintenance:ro,noexec,nosuid,nodev,size=64k,mode=0000")
+
+load_image() {
+  [[ -f "$pin" ]] || fail 'Run ./follow-container install first.'
+  image=$(<"$pin")
+  [[ "$image" =~ ^sha256:[a-f0-9]{64}$ ]] || fail 'Invalid installed image ID; reinstall.'
+}
+invoke() {
+  local terminal=()
+  if [[ -t 0 && -t 1 ]]; then terminal=(-it); fi
+  docker run --rm "${terminal[@]}" "${runtime[@]}" "$image" "$@" --config "$config"
+}
+unit_quote() {
+  local value=$1
+  value=${value//\\/\\\\}
+  value=${value//\"/\\\"}
+  value=${value//%/%%}
+  value=${value//\$/\$\$}
+  printf '"%s"' "$value"
+}
+service_start_line() {
+  printf 'ExecStart='
+  for argument in "$(command -v docker)" run --rm --name "$container_name" \
+    --restart no "${runtime[@]}" "$image" run --config "$config"; do
+    unit_quote "$argument"; printf ' '
+  done
+}
+
+case "$action" in
+  install|start|stop)
+    [[ $# == 0 ]] || fail "$action takes no options."
+    # Serialize operator actions separately from the application's shared locks.
+    exec 9>"$state_dir/container-control.lock"
+    flock -n 9 || fail 'Another container control command is running.'
+    ;;
+esac
+
+case "$action" in
+  install)
+    if systemctl --user is-active --quiet "$unit" || systemctl --user is-enabled --quiet "$unit"; then
+      fail 'Stop the container service before changing its installed image.'
+    fi
+    image=$(docker image inspect --format '{{.Id}}' "${FOLLOW_EXECUTOR_IMAGE:-follow-executor:0.1.11}")
+    [[ "$image" =~ ^sha256:[a-f0-9]{64}$ ]] || fail 'Could not resolve a local image ID.'
+    mkdir -p -- "$unit_dir"
+    unit_tmp=$(mktemp "$unit_dir/.executor-container.XXXXXX")
+    trap 'rm -f -- "$unit_tmp"' EXIT
+    {
+      cat <<EOF
+[Unit]
+Description=Follow Executor container ($identity)
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+UMask=0077
+Restart=on-failure
+RestartSec=10
+RestartPreventExitStatus=2
+TimeoutStopSec=60
+EOF
+      service_start_line
+      printf '\nExecStop='
+      for argument in "$(command -v docker)" stop --time 45 "$container_name"; do
+        unit_quote "$argument"; printf ' '
+      done
+      printf '\n\n[Install]\nWantedBy=default.target\n'
+    } > "$unit_tmp"
+    mv -- "$unit_tmp" "$unit_dir/$unit"
+    printf '%s\n' "$image" > "$pin.tmp"
+    mv -- "$pin.tmp" "$pin"
+    # The manager's XDG environment may differ from this shell's custom paths.
+    systemctl --user link "$unit_dir/$unit"
+    systemctl --user daemon-reload
+    printf 'Installed %s with image %s. Trading has not been started.\n' "$unit" "$image"
+    printf 'Next: ./follow-container configure, then ./follow-container check.\n'
+    printf 'For operation after logout/reboot, enable user lingering: sudo loginctl enable-linger %s\n' "$(id -un)"
+    ;;
+  start)
+    load_image
+    [[ -f "$unit_dir/$unit" ]] || fail 'Service is missing; run install again.'
+    expected_start=$(service_start_line)
+    actual_start=
+    while IFS= read -r line; do
+      if [[ "$line" == ExecStart=* ]]; then actual_start=$line; fi
+    done < "$unit_dir/$unit"
+    [[ "$actual_start" == "$expected_start" ]] ||
+      fail 'Installed service differs from this launcher. While stopped and flat, reinstall from this release to protect Gateway credentials before starting.'
+    if systemctl --user is-active --quiet "$unit"; then
+      printf 'Container service is already running.\n'; exit 0
+    fi
+    checks=(check)
+    if [[ ${FOLLOW_CHECK_QUOTES:-0} == 1 ]]; then checks+=(--quotes); fi
+    invoke "${checks[@]}"
+    systemctl --user enable --now "$unit"
+    ;;
+  stop)
+    systemctl --user disable --now "$unit"
+    printf 'Stopped. Positions and broker orders have not been closed or cancelled.\n'
+    ;;
+  service-status) exec systemctl --user status "$unit" ;;
+  logs) exec journalctl --user -u "$unit" -f ;;
+  maintenance-check)
+    image=${FOLLOW_EXECUTOR_PROBE_IMAGE:-}
+    [[ "$image" =~ ^sha256:[a-f0-9]{64}$ ]] || fail 'A verified maintenance probe image is required.'
+    invoke maintenance-check "$@"
+    ;;
+  *) load_image; invoke "$action" "$@" ;;
+esac

@@ -1,0 +1,26 @@
+{
+  "relay_url": "https://relay.quantmnq.com",
+  "stream": "sessioncycle.mnq",
+  "leader_public_key": "zesvLFF3vT/hPtfal4i+m6K35v+cO9x4+jOXFLH6Xp4=",
+  "token_path": "/home/ubuntu/.config/follow-executor/relay.token",
+  "journal_path": "/home/ubuntu/.local/state/follow-executor/executor.sqlite3",
+  "ibkr": {
+    "host": "127.0.0.1",
+    "port": 4002,
+    "client_id": 71,
+    "account": "DU1234567",
+    "account_type": "paper"
+  },
+  "instrument": {"root": "MNQ", "quantity": 1},
+  "risk": {
+    "max_quantity": 10,
+    "max_entry_slippage_points": 10,
+    "max_margin_fraction": 0.5,
+    "max_stop_risk_usd": null
+  },
+  "feed": {
+    "heartbeat_timeout_seconds": 30,
+    "clock_exit_grace_seconds": 30,
+    "send_acks": true
+  }
+}

@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Follow Executor contributors
+set -euo pipefail
+repo_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+executor_bin="$repo_dir/.venv/bin/follow-executor"
+if [[ ! -x $executor_bin ]]; then
+    echo 'Run ./install.sh first.' >&2
+    exit 1
+fi
+# Service and interactive commands intentionally use the same config location.
+config_path="$HOME/.config/follow-executor/executor.json"
+case "${1:-help}" in
+    start)
+        if systemctl --user is-active --quiet follow-executor.service; then
+            echo 'Executor is already running.'
+            exit 0
+        fi
+        "$executor_bin" check --config "$config_path"
+        systemctl --user enable --now follow-executor.service
+        sleep 1
+        systemctl --user is-active follow-executor.service
+        ;;
+    stop)
+        systemctl --user disable --now follow-executor.service
+        echo 'Executor stopped and disabled at boot. This does not flatten positions or cancel broker orders.'
+        ;;
+    logs) exec journalctl --user -u follow-executor.service -f ;;
+    service-status) exec systemctl --user status follow-executor.service ;;
+    help|--help|-h)
+        echo 'Usage: ./follow {configure|check|watch|start|stop|status|logs|service-status|settings|resume|discord|gateway}'
+        echo 'Discord notifications: ./follow discord {link|enable|status|unlink}'
+        echo 'IBC Gateway automation: ./follow gateway {configure|start|stop|status|logs}'
+        echo 'Optional container pilot: ./follow gateway configure --backend docker --vnc'
+        echo 'Change size/instrument while stopped and flat: ./follow settings --root MNQ --quantity 2'
+        ;;
+    *) command_name=$1; shift; exec "$executor_bin" "$command_name" --config "$config_path" "$@" ;;
+esac

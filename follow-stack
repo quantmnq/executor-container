@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Follow Executor contributors
+# Host controller only: Ubuntu's standard-library Python needs no pip or venv.
+set -euo pipefail
+umask 077
+release_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+exec /usr/bin/python3.12 -I -S "$release_dir/scripts/stack-bootstrap.py" "$@"

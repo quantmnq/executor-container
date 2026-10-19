@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "follow-executor"
+version = "0.1.11"
+description = "Run signed follower signals in your own IBKR account at your own MNQ/NQ size."
+readme = "README.md"
+license = {file = "LICENSE"}
+classifiers = ["License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)"]
+requires-python = ">=3.12"
+dependencies = ["cryptography>=42,<47"]
+
+[project.optional-dependencies]
+dev = ["aiohttp>=3.9,<4", "ruff>=0.5", "build>=1.2"]
+
+[project.scripts]
+follow-executor = "follow_executor.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["follow_executor*"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
