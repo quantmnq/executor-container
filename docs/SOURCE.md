@@ -21,7 +21,7 @@ checks it too. It contains the application, wizard, launchers, Dockerfile, build
 scripts, dependency pins, tests, docs and license notices. `SOURCE.json` records
 individual source-file hashes. It contains no Git history or machine configuration.
 
-For a container kit, also download `follow-executor-0.1.11-dependencies.tar.gz`
+For a container kit, also download `follow-executor-0.1.12-dependencies.tar.gz`
 from the **same release page as the installation archive**. Its SHA-256 is in
 `RELEASE.json` under `third_party_source`. This separate download is for inspection
 and rebuilding; normal installation does not need it. It includes the exact
@@ -48,7 +48,7 @@ python3.12 scripts/build-bytecode.py
 python3.12 scripts/build-executor-container.py
 python3.12 scripts/test-executor-container.py
 python3.12 scripts/test-executor-isolation.py
-python3.12 scripts/collect-third-party-source.py --image follow-executor:0.1.11
+python3.12 scripts/collect-third-party-source.py --image follow-executor:0.1.12
 python3.12 scripts/build-container-kit.py --build dist/executor-container/BUILD.json --third-party dist/third-party/SOURCES.json
 ```
 

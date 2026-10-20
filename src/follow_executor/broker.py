@@ -109,6 +109,8 @@ class BrokerState:
     executions: tuple[Execution, ...] = ()
     rejections: tuple[Rejection, ...] = ()
     as_of: datetime | None = None
+    snapshot_id: int = 0
+    snapshot_complete: bool = True
 
 
 @dataclass(frozen=True)

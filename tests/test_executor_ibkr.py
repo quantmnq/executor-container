@@ -222,6 +222,21 @@ class HealthAdapterTests(unittest.TestCase):
         self.broker.monitor_market_data([contract()])
         return self.app.reqMktData.call_args.args[0]
 
+    def test_safety_snapshot_id_requires_positions_orders_and_executions(self):
+        self.assertFalse(self.broker.state().snapshot_complete)
+        self.broker.refresh()
+        first = self.broker.state().snapshot_id
+        self.callbacks.positionEnd()
+        self.callbacks.openOrderEnd()
+        self.assertFalse(self.broker.state().snapshot_complete)
+        self.broker.refresh()  # An in-flight request is not replaced.
+        self.assertEqual(self.broker.state().snapshot_id, first)
+        self.callbacks.execDetailsEnd(self.broker._execution_request_id)
+        self.assertTrue(self.broker.state().snapshot_complete)
+        self.broker.refresh()
+        self.assertGreater(self.broker.state().snapshot_id, first)
+        self.assertFalse(self.broker.state().snapshot_complete)
+
     def ready_quote(self, req_id):
         self.callbacks.marketDataType(req_id, 1)
         self.callbacks.tickPrice(req_id, 1, 20150.25, None)

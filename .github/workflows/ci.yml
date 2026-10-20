@@ -21,5 +21,5 @@ jobs:
       - run: .venv/bin/python scripts/build-executor-container.py
       - run: .venv/bin/python scripts/test-executor-container.py
       - run: .venv/bin/python scripts/test-executor-isolation.py
-      - run: .venv/bin/python scripts/collect-third-party-source.py --image follow-executor:0.1.11
+      - run: .venv/bin/python scripts/collect-third-party-source.py --image follow-executor:0.1.12
       - run: .venv/bin/python scripts/build-container-kit.py --build dist/executor-container/BUILD.json --third-party dist/third-party/SOURCES.json

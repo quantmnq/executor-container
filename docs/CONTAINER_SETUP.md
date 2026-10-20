@@ -10,7 +10,7 @@ No host venv, pip packages, Java installation or full desktop is needed.
 **New to terminals? Start with the [beginner guide](SETUP.md).** This page is the
 technical setup, maintenance and recovery reference.
 
-Version 0.1.11 is prepared for a limited paper-account rollout. See the
+Version 0.1.12 is prepared for a limited paper-account rollout. See the
 [release notes](RELEASE_NOTES.md) for validation scope. Existing installations
 retain their current backend until deliberately migrated.
 This wizard supports a new installation, resuming its own saved setup, and an
@@ -19,7 +19,7 @@ refuses another Gateway installation or a different installed executor image;
 use the maintenance commands below for release changes. Migration from a native
 installation still needs a separately reviewed procedure.
 
-## Credential isolation in 0.1.11
+## Credential isolation in 0.1.12
 
 The executor containers cannot read the managed Gateway credential directory or
 maintenance backups. Empty read-only mounts hide both subtrees; credentials,
@@ -205,9 +205,9 @@ do not bypass the pending-maintenance marker or launch the older controller to t
 From the source checkout, build into a separate output directory:
 
 ```bash
-python3.12 scripts/build-executor-container.py --tag follow-executor:0.1.11 --output dist/container-wizard/image
-python3.12 scripts/test-executor-container.py --image follow-executor:0.1.11
-python3.12 scripts/collect-third-party-source.py --image follow-executor:0.1.11
+python3.12 scripts/build-executor-container.py --tag follow-executor:0.1.12 --output dist/container-wizard/image
+python3.12 scripts/test-executor-container.py --image follow-executor:0.1.12
+python3.12 scripts/collect-third-party-source.py --image follow-executor:0.1.12
 python3.12 scripts/build-container-kit.py --build dist/container-wizard/image/BUILD.json --third-party dist/third-party/SOURCES.json --output dist/container-wizard/kit
 ```
 

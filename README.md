@@ -137,7 +137,7 @@ strategy profitable. [Execution behavior and recovery](docs/EXECUTOR.md).
 - `~/.local/state/follow-executor/executor.sqlite3`: durable journal; keep it.
 - `~/.config/systemd/user/follow-executor.service`: local service definition.
 
-In container release 0.1.11, the executor cannot access the managed Gateway
+In container release 0.1.12, the executor cannot access the managed Gateway
 credential directory or maintenance backups through its filesystem mounts.
 These paths are obscured by empty read-only mounts in executor commands and
 services; the host controller and Gateway retain their existing files. Setup

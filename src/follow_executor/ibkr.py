@@ -95,6 +95,7 @@ class IBKRBroker:
         self._executions_end = threading.Event()
         self._execution_request_id = None
         self._snapshot_started = None
+        self._snapshot_id = 0
         self._reconciled = False
         self._market_requests: dict[int, dict[str, Any]] = {}
         self._down_farms: set[str] = set()
@@ -230,6 +231,7 @@ class IBKRBroker:
                 return
             self._reconciled = False
         self._snapshot_started = now
+        self._snapshot_id += 1
         self._positions_end.clear()
         self._orders_end.clear()
         self._executions_end.clear()
@@ -418,6 +420,8 @@ class IBKRBroker:
                 executions=tuple(self._executions.values()),
                 rejections=tuple(self._rejections),
                 as_of=datetime.now(UTC),
+                snapshot_id=self._snapshot_id,
+                snapshot_complete=self._snapshot_complete(),
             )
 
     # Callbacks (IBKR reader thread; also called directly by tests) -----------

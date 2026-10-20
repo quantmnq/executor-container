@@ -29,7 +29,7 @@ def docker(*args: str, check: bool = True) -> subprocess.CompletedProcess:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--image", default="follow-executor:0.1.11")
+    parser.add_argument("--image", default="follow-executor:0.1.12")
     args = parser.parse_args()
     names = []
     with tempfile.TemporaryDirectory(prefix="follow-container-test-") as directory:
@@ -104,7 +104,8 @@ else:
             regression = docker(
                 "run", "--rm", *options, "--workdir", "/tests", "--entrypoint", "python",
                 args.image, "-m", "unittest", "test_executor_engine", "test_executor_ibkr",
-                "test_executor_service", "test_executor_setup", "test_executor_notifications",
+                "test_executor_service", "test_executor_protection",
+                "test_executor_setup", "test_executor_notifications",
                 "test_position_notifications", "test_service_notifications",
                 "test_maintenance", "test_readiness",
                 "test_gateway", "test_gateway_docker", "test_gateway_login", "test_gateway_health",

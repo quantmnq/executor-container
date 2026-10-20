@@ -150,6 +150,8 @@ class FakeBroker:
         self.reject: dict[str, tuple[int, str]] = {}
         self.calls: list[tuple[str, Any]] = []
         self.connect_error: Exception | None = None
+        self.snapshot_id = 0
+        self.snapshot_complete = True
         self._ids = itertools.count(1)
         self._execs = itertools.count(1)
         self._rejection_seq = itertools.count(1)
@@ -175,7 +177,7 @@ class FakeBroker:
         pass
 
     def refresh(self) -> None:
-        pass
+        self.snapshot_id += 1
 
     def resolve(self, root: str, contract_month: str) -> FutureContract:
         value = contract(contract_month, root)
@@ -187,6 +189,7 @@ class FakeBroker:
             connected=self.connected, positions=dict(self.positions), average_prices=dict(self.average),
             contracts=dict(self.contracts), orders=dict(self.orders), executions=tuple(self.executions),
             rejections=tuple(self.rejections),
+            snapshot_id=self.snapshot_id, snapshot_complete=self.snapshot_complete,
         )
 
     def place(self, request: OrderRequest, order_id: int | None = None) -> int:

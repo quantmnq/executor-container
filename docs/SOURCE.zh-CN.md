@@ -19,7 +19,7 @@ Dockerfile、构建脚本、依赖版本和校验值、测试、文档及许可�
 `SOURCE.json` 记录每个源码文件的哈希值。不包含 Git 历史或本机配置。
 
 对于容器安装包，还可以从**下载安装包的同一个发布页面**下载
-`follow-executor-0.1.11-dependencies.tar.gz`。其 SHA-256 位于 `RELEASE.json`
+`follow-executor-0.1.12-dependencies.tar.gz`。其 SHA-256 位于 `RELEASE.json`
 的 `third_party_source` 字段。这个单独的下载供查看和重新构建使用，正常安装不需要。
 它包含完全相同且未经修改的官方 IBKR API 压缩包、Python 依赖源码包、CPython 源码，
 以及镜像对应的 Debian 软件包源码、补丁和声明。重新分发容器发布版时，请一并保留并
@@ -42,7 +42,7 @@ python3.12 scripts/build-bytecode.py
 python3.12 scripts/build-executor-container.py
 python3.12 scripts/test-executor-container.py
 python3.12 scripts/test-executor-isolation.py
-python3.12 scripts/collect-third-party-source.py --image follow-executor:0.1.11
+python3.12 scripts/collect-third-party-source.py --image follow-executor:0.1.12
 python3.12 scripts/build-container-kit.py --build dist/executor-container/BUILD.json --third-party dist/third-party/SOURCES.json
 ```
 

@@ -93,6 +93,7 @@ src/follow_executor/maintenance_probe.py
 src/follow_executor/maintenance_state.py
 src/follow_executor/notifications.py
 src/follow_executor/position_notifications.py
+src/follow_executor/protection.py
 src/follow_executor/release.py
 src/follow_executor/setup.py
 src/follow_executor/signal.py
@@ -111,6 +112,7 @@ tests/test_executor_engine.py
 tests/test_executor_feed.py
 tests/test_executor_ibkr.py
 tests/test_executor_notifications.py
+tests/test_executor_protection.py
 tests/test_executor_service.py
 tests/test_executor_setup.py
 tests/test_gateway.py

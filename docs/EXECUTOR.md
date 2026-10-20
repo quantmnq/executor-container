@@ -28,6 +28,42 @@ Rules that protect you:
   that trade, even inside the entry window.
 - **A refused stop means exit.** If IBKR refuses a stop or a stop move, the
   stop level is treated as unreachable and the position is closed.
+- **Stop protection deadlines.** For both long and short positions, if no
+  broker-confirmed stop covers the actual filled quantity within **30 seconds**
+  of observing an entry fill (including a partial fill), the executor starts a
+  market exit. If an existing stop is cancelled or ceases to cover the position,
+  it allows **60 seconds** for a matching replacement before starting the exit.
+  A valid stop must be on the same contract, on the closing side, and have a
+  remaining quantity exactly equal to the position. Pending submissions do not
+  count as protection.
+  Timers survive restarts and an expired deadline remains latched until flat;
+  it does not re-enter that trade. Before sending an exit, the executor cancels
+  outstanding orders and reconciles fills so it cannot deliberately reverse the
+  position. These are exit-submission deadlines, not guaranteed fill times:
+  broker disconnection, delayed confirmations or a closed market can delay the
+  exit. An elapsed timer is handled after reconnection and reconciliation.
+- **Verified pre-open cancellation.** If this executor deliberately cancels a
+  matching stop under a signed `next_rth_open` plan, the scheduled exit deadline
+  replaces the 60-second replacement deadline: `flatten_at` plus the configured
+  exit grace, capped at **30 seconds**. For a 9:29 AM Eastern cancellation and
+  9:30 AM exit, that means 9:30:30 at the latest. It requires a recorded request
+  by this executor and broker confirmation that the stop is cancelled/absent;
+  being near the opening time does not exempt a manual or unexpected cancellation.
+  The plan must specify a one-minute cancellation window. A changed plan, new
+  exposure or a replacement stop invalidates the old exception. Its fixed
+  deadline survives restart and remains active during halts; an ordinary exit
+  signal can still close earlier. The 30-second entry rule is never exempted.
+- **Stops while flat.** Independently of normal trading and acknowledgement
+  waits, the executor checks for its own working stops on flat contracts, also
+  during a halt or after restart. It confirms flatness with a fresh broker
+  snapshot, cancels those stops and any pending entries on the same contract,
+  and blocks new entries until cancellation/fills are reconciled. A temporarily
+  delayed position callback is given the existing five-second mismatch grace.
+  A manual close does not prevent orphan-stop cleanup. If a stop or entry fills
+  during cancellation, only the resulting, verified executor-owned exposure is
+  closed. It never submits a market order merely because the account is flat.
+  Foreign-client orders cause a halt and require their owner's intervention;
+  they are not cancelled through a global account-wide cancel.
 - **Margin.** Before an entry, an IBKR what-if must show initial margin at or
   below `max_margin_fraction` of equity (default 0.5). It is cached for up to
   15 minutes. If the check fails or is unavailable, the entry is refused.
@@ -40,7 +76,9 @@ Rules that protect you:
 ## Halts
 
 A halt stops all new exposure. Broker stops stay in place, and a missing stop
-on a held position is still repaired. The executor halts when:
+on a held position is still repaired. The protection deadlines above remain
+active during a halt; an unexplained position or order must be reconciled before
+an automatic exit can safely proceed. The executor halts when:
 
 - your broker position differs from its own record of fills for more than
   5 s;

@@ -34,9 +34,11 @@ from .engine import (
     View,
     decide,
     desired_stop,
+    exit_request,
     stop_request,
 )
 from .journal import Journal
+from .protection import ProtectionWatch
 from .signal import Heartbeat, SignalError, Target, parse_target
 
 LOGGER = logging.getLogger(__name__)
@@ -196,6 +198,11 @@ class Executor:
         self._started_at = self.clock()
         self._heartbeat_seq = 0
         self._service_started = False
+        self._protection = ProtectionWatch(journal)
+        self._protection_refresh: dict[int, int] = {}
+        self._orphan_stops: dict[str, dict] = json.loads(journal.get_state("orphan_stops") or "{}")
+        self._orphan_refresh: int | None = None
+        self._orphan_refresh_at = datetime.min.replace(tzinfo=UTC)
 
     # Feed callbacks (feed thread) -----------------------------------------
 
@@ -289,6 +296,18 @@ class Executor:
         if self.journal.get_state("resume_requested") is not None:
             if halt is not None:
                 self.journal.set_baseline(state.positions)
+                # Resume explicitly adopts the current broker positions. An
+                # orphan-fill offset belongs to the previous journal baseline.
+                for record in self._protection.records.values():
+                    record["position_offset"] = 0
+                if self._protection.records:
+                    self._protection.save()
+                for record in self._orphan_stops.values():
+                    record["phase"] = "checking"
+                    record["verify_after"] = (now + MISMATCH_GRACE).isoformat()
+                if self._orphan_stops:
+                    self._save_orphans()
+                    self._orphan_refresh = None
                 self._mismatch_since = None
                 LOGGER.warning("resumed; the executor now owns positions %s", state.positions)
                 halt = None
@@ -298,6 +317,15 @@ class Executor:
             if problem is not None:
                 self._halt(problem)
                 halt = problem
+
+        self._protection.observe(state, now, self.target)
+        safety_actions = self._orphan_stop_actions(state, now)
+        if safety_actions is None:
+            safety_actions = self._protection_actions(state, now)
+        if safety_actions is not None:
+            for action in safety_actions:
+                self._execute(action, now)
+            return safety_actions
 
         if self._waiting(now):
             return []
@@ -411,6 +439,7 @@ class Executor:
             pending = self.pending.get(rejection.order_id)
             purpose = purposes.get(rejection.order_id) or (pending.purpose if pending else None)
             if rejection.cancel_refused:
+                self._protection.cancel_refused(rejection.order_id)
                 if pending is not None and pending.kind == "cancel":
                     self.pending.pop(rejection.order_id, None)
                 continue
@@ -466,6 +495,193 @@ class Executor:
             self.pending.pop(order_id)
             return True
         return False
+
+    def _save_orphans(self) -> None:
+        self.journal.set_state("orphan_stops", json.dumps(self._orphan_stops, sort_keys=True))
+
+    def _orphan_stop_actions(self, state: BrokerState, now: datetime) -> list[Action] | None:
+        """Cancel our stops on confirmed-flat contracts, even during a halt.
+
+        A fresh snapshot prevents a delayed position callback from being mistaken
+        for flat. Persist cleanup before cancellation and block new entries until
+        another snapshot resolves cancellation/fill races.
+        """
+        expected = self.journal.expected_positions()
+        for order in state.orders.values():
+            if (order.working and order.purpose == "stop"
+                    and order.client_id == self.config.ibkr.client_id
+                    and not state.positions.get(order.con_id)
+                    and str(order.order_id) not in self._orphan_stops):
+                self._orphan_stops[str(order.order_id)] = {
+                    "con_id": order.con_id, "phase": "checking",
+                    "trade_key": self._trade_of(order.order_id),
+                    "verify_after": (now + (MISMATCH_GRACE if expected.get(order.con_id)
+                                            else timedelta())).isoformat(),
+                }
+                self._orphan_refresh = None
+                self._save_orphans()
+        if not self._orphan_stops:
+            self._orphan_refresh = None
+            return None
+        if self._orphan_refresh is None:
+            self._orphan_refresh = state.snapshot_id
+            self._orphan_refresh_at = now
+            self.broker.refresh()
+            return []
+        if not state.snapshot_complete:
+            return []
+        if state.snapshot_id <= self._orphan_refresh:
+            self._orphan_refresh_at = now
+            self.broker.refresh()
+            return []
+
+        actions: dict[int, Cancel] = {}
+        for key, record in list(self._orphan_stops.items()):
+            con_id = record["con_id"]
+            order = state.orders.get(int(key))
+            position = state.positions.get(con_id, 0)
+            if record["phase"] == "checking":
+                if position or order is None or not order.working:
+                    del self._orphan_stops[key]
+                    continue
+                if expected.get(con_id):
+                    verify_after = datetime.fromisoformat(record["verify_after"])
+                    if now < verify_after:
+                        continue
+                    if self._orphan_refresh_at < verify_after:
+                        self._orphan_refresh = None
+                        continue
+                record["phase"] = "cancelling"
+                record["expected_before"] = expected.get(con_id, 0)
+                self.journal.log("orphan_stop", {"order_id": int(key), "con_id": con_id})
+                LOGGER.warning("cancelling orphan stop %s on a flat contract", key)
+            elif position or expected.get(con_id, 0) != record["expected_before"]:
+                # A stop/entry filled after verified flat while cancellation was
+                # in flight. Reconcile and close only the executor-owned exposure.
+                self._protection.force_close(con_id, now, "fill during orphan stop cancellation",
+                                             record["trade_key"], position_offset=record["expected_before"])
+                del self._orphan_stops[key]
+                continue
+            working = [item for item in state.orders.values()
+                       if item.con_id == con_id and item.working
+                       and item.client_id == self.config.ibkr.client_id
+                       and item.purpose in {"stop", "entry"}]
+            if not working:
+                del self._orphan_stops[key]
+                continue
+            for item in working:
+                pending = self.pending.get(item.order_id)
+                if pending is None or pending.kind != "cancel" or now - pending.since >= CANCEL_RETRY:
+                    actions[item.order_id] = Cancel(item.order_id, "stop on a flat contract")
+        # Save the cancelling phase before calling the broker, including across a
+        # process death between submitting cancel and receiving its callback.
+        self._save_orphans()
+        if actions:
+            self._orphan_refresh = None
+            return list(actions.values())
+        return [] if self._orphan_stops else None
+
+    def _protection_actions(self, state: BrokerState, now: datetime) -> list[Action] | None:
+        """Close timed-out exposure even while normal decisions/acks are halted.
+
+        Every cancellation/submission is followed by a fresh broker snapshot.
+        Never race a stop or a remaining entry, or guess an unreconciled quantity.
+        """
+        closing = [int(key) for key, record in self._protection.records.items() if record["closing"]]
+        if not closing:
+            return None
+        con_id = closing[0]
+        record = self._protection.records[str(con_id)]
+        reason = record["reason"]
+        target = self.target
+        contract = state.contracts.get(con_id)
+        if (target is not None and contract is not None
+                and target.contract_month == contract.contract_month and target.trade_key
+                and target.trade_key not in record["trade_keys"]):
+            record["trade_keys"].append(target.trade_key)
+            self._protection.save()
+        for key in record["trade_keys"]:
+            if self.journal.trade_status(key) not in {"closing", "closed"}:
+                self._execute(MarkTrade(key, "closing", reason), now)
+                LOGGER.error("%s; closing the unprotected position", reason)
+
+        # A complete snapshot requested after the last action also covers fills
+        # that raced cancellation or were missed across a disconnect/restart.
+        if con_id not in self._protection_refresh:
+            self._protection_refresh[con_id] = state.snapshot_id
+            self.broker.refresh()
+            return []
+        if not state.snapshot_complete:
+            return []
+        if state.snapshot_id <= self._protection_refresh[con_id]:
+            # refresh() can defer while an earlier periodic snapshot is in flight.
+            # Once that finishes, request the safety snapshot without waiting 30 s.
+            self.broker.refresh()
+            return []
+        position = state.positions.get(con_id, 0)
+        expected = self.journal.expected_positions().get(con_id, 0) - record.get("position_offset", 0)
+        if position != expected:
+            return []
+        orders = [order for order in state.orders.values() if order.con_id == con_id]
+        filled = {}
+        for execution in self.journal.notification_executions():
+            oid = execution["order_id"]
+            filled[oid] = filled.get(oid, 0) + execution["quantity"]
+        if any(order.client_id == self.config.ibkr.client_id and order.purpose
+               and order.filled > filled.get(order.order_id, 0) for order in orders):
+            return []  # Wait for executions before deciding how much is left.
+        working = [order for order in state.orders.values() if order.working]
+        if any(order.client_id != self.config.ibkr.client_id or not order.purpose for order in working):
+            self._halt("protection exit blocked by an order from another client")
+            return []
+
+        # Unknown submission outcomes must be settled by a subsequent snapshot,
+        # never by blindly sending a second market exit after an ack timeout.
+        for oid, order in self.journal.notification_orders().items():
+            if order["con_id"] != con_id or oid in state.orders:
+                continue
+            pending = self.pending.get(oid)
+            if pending is not None and now - pending.since <= ACK_TIMEOUT:
+                self._protection_refresh.pop(con_id, None)
+                return []
+            if order["status"] in {"submitted", "ApiPending", "PendingSubmit", "PreSubmitted",
+                                   "Submitted", "PendingCancel"}:
+                self.journal.set_order_status(oid, "Absent")
+                self.pending.pop(oid, None)
+
+        exits = [order for order in working if position and order.con_id == con_id and order.purpose == "exit"
+                 and order.action == ("SELL" if position > 0 else "BUY")
+                 and order.order_type == "MKT" and order.remaining == abs(position)]
+        keep_exit = exits[0].order_id if len(exits) == 1 else None
+        cancel = [order for order in working if order.order_id != keep_exit]
+        if cancel:
+            actions: list[Action] = []
+            for order in cancel:
+                pending = self.pending.get(order.order_id)
+                if pending is None or pending.kind != "cancel" or now - pending.since >= CANCEL_RETRY:
+                    actions.append(Cancel(order.order_id, reason))
+            if actions:
+                self._protection_refresh.pop(con_id, None)
+            return actions
+        if keep_exit is not None:
+            return []
+        if not position:
+            for key in record["trade_keys"]:
+                self._execute(MarkTrade(key, "closed", reason), now)
+            self._protection.finish(con_id)
+            self._protection_refresh.pop(con_id, None)
+            return []
+        if contract is None:
+            self._halt("protection exit cannot resolve the held contract")
+            return []
+        retry_at = record.get("retry_at")
+        if retry_at and now < datetime.fromisoformat(retry_at):
+            return []
+        record["retry_at"] = (now + CANCEL_RETRY).isoformat()
+        self._protection.save()
+        self._protection_refresh.pop(con_id, None)
+        key = record["trade_keys"][-1] if record["trade_keys"] else None
+        return [Place(exit_request(position, contract, target), key)]
 
     def _view(self, state: BrokerState, now: datetime) -> View:
         target = self.target
@@ -530,7 +746,15 @@ class Executor:
             return
         try:
             if isinstance(action, Cancel):
+                planned_state = (self.broker.state()
+                                 if action.reason == "pre-open stop cancellation" else None)
+                planned_target = self.target
                 self.broker.cancel(action.order_id)
+                if planned_state is not None:
+                    self._protection.planned_cancellation(
+                        planned_state, action.order_id, planned_target, now,
+                        self.config.ibkr.client_id, self.config.clock_exit_grace_seconds,
+                    )
                 self.pending[action.order_id] = Pending("cancel", now)
                 self.journal.log("cancel", {"order_id": action.order_id, "reason": action.reason})
                 LOGGER.info("cancel order %s: %s", action.order_id, action.reason)

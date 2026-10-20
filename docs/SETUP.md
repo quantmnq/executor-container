@@ -3,7 +3,7 @@
 English | [简体中文](SETUP.zh-CN.md)
 
 This guide installs **both Gateway and the Auto Quant executor in containers**
-using the `follow-stack-0.1.11-ubuntu24.04-arm64-cp312.tar.gz` kit. Start with an
+using the `follow-stack-0.1.12-ubuntu24.04-arm64-cp312.tar.gz` kit. Start with an
 IBKR **paper account**, which simulates trading. You do not need to write code,
 use GitHub, build an image, or install an AI assistant.
 
@@ -58,14 +58,14 @@ An AI assistant is optional. If you want one to guide you, use
 
 | Item | What to do with it |
 | --- | --- |
-| `follow-stack-0.1.11-ubuntu24.04-arm64-cp312.tar.gz` | Save in your laptop's **Downloads** folder; leave it compressed. |
+| `follow-stack-0.1.12-ubuntu24.04-arm64-cp312.tar.gz` | Save in your laptop's **Downloads** folder; leave it compressed. |
 | Matching `.tar.gz.sha256` file | Save beside it. This lets Ubuntu verify the download. |
 | Personal relay token | Keep private; enter it into the wizard later. It connects you to the signal service. |
 | Expected provider public-key fingerprint | Keep for comparison with readiness results. This identifies the signal provider. |
 | Support contact and optional Discord invitation | Use the contact supplied with your customer download. |
 
 Get both download files from Auto Quant's trusted channel. Discord may supply the
-files or a download link. These examples use **0.1.11**; if your version differs,
+files or a download link. These examples use **0.1.12**; if your version differs,
 use its included guide and matching filenames. Do not mix releases.
 
 Have your **paper-trading username, password and paper account ID** ready. An
@@ -157,14 +157,14 @@ Replace the IP placeholder, then paste the next command as **one line**. `scp`
 means secure file copy; keep the colon and `Downloads/` at the end.
 
 ```bash
-scp -i ./auto-quant.key follow-stack-0.1.11-ubuntu24.04-arm64-cp312.tar.gz follow-stack-0.1.11-ubuntu24.04-arm64-cp312.tar.gz.sha256 ubuntu@YOUR_OCI_PUBLIC_IP:Downloads/
+scp -i ./auto-quant.key follow-stack-0.1.12-ubuntu24.04-arm64-cp312.tar.gz follow-stack-0.1.12-ubuntu24.04-arm64-cp312.tar.gz.sha256 ubuntu@YOUR_OCI_PUBLIC_IP:Downloads/
 ```
 
 Wait for both transfers. **Back in Window A — Ubuntu**, run one line at a time:
 
 ```bash
 cd ~/Downloads
-sha256sum -c follow-stack-0.1.11-ubuntu24.04-arm64-cp312.tar.gz.sha256
+sha256sum -c follow-stack-0.1.12-ubuntu24.04-arm64-cp312.tar.gz.sha256
 ```
 
 **Checkpoint:** the archive's filename ends with **`OK`**. If you see `FAILED`,
@@ -174,8 +174,8 @@ or install a failed download.
 Extract into a permanent version folder in your Ubuntu home directory:
 
 ```bash
-tar -xzf follow-stack-0.1.11-ubuntu24.04-arm64-cp312.tar.gz -C ~
-cd ~/follow-stack-0.1.11-ubuntu24.04-arm64-cp312
+tar -xzf follow-stack-0.1.12-ubuntu24.04-arm64-cp312.tar.gz -C ~
+cd ~/follow-stack-0.1.12-ubuntu24.04-arm64-cp312
 ```
 
 No output from `tar` or `cd` is normal. Keep this extracted folder at this path;
@@ -226,7 +226,7 @@ ssh -i ./auto-quant.key ubuntu@YOUR_OCI_PUBLIC_IP
 **Once the Ubuntu prompt returns**, resume from the same folder:
 
 ```bash
-cd ~/follow-stack-0.1.11-ubuntu24.04-arm64-cp312
+cd ~/follow-stack-0.1.12-ubuntu24.04-arm64-cp312
 ./follow-stack setup
 ```
 
@@ -380,6 +380,13 @@ Require successful readiness, including quotes, the expected provider fingerprin
 and **your intended paper mode, instrument and quantity**. Investigate any listed
 problem. Readiness can request margin estimates; it does not place executable orders.
 
+Read [how the executor protects positions](EXECUTOR.md) before starting. This
+version starts emergency closing if a matching stop is still missing 30 seconds
+after an observed entry fill, or 60 seconds after unexpected loss of an existing
+stop. Verified planned exits have their own fixed deadline. It also cleans up
+its leftover stops after confirming the position is flat. These checks require
+the executor to be running; broker/network delays can delay actual closing.
+
 Starting can **immediately submit paper orders** and enables executor startup
 after a VM reboot. If that is what you intend:
 
@@ -410,7 +417,7 @@ Each new SSH session starts outside the release folder. Connect as in step 2,
 then run:
 
 ```bash
-cd ~/follow-stack-0.1.11-ubuntu24.04-arm64-cp312
+cd ~/follow-stack-0.1.12-ubuntu24.04-arm64-cp312
 ```
 
 | What you want | Command / action |

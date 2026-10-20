@@ -2,7 +2,7 @@
 
 [English](SETUP.md) | 简体中文
 
-本指南使用 `follow-stack-0.1.11-ubuntu24.04-arm64-cp312.tar.gz` 安装包，
+本指南使用 `follow-stack-0.1.12-ubuntu24.04-arm64-cp312.tar.gz` 安装包，
 将 **Gateway 和 Auto Quant 执行器一起安装在容器中**。先使用 IBKR **模拟账户
 （paper）**，不涉及真实资金交易。你无需编写代码、使用 GitHub、构建镜像或安装 AI 助手。
 
@@ -54,14 +54,14 @@ AI 助手是可选的。如需它逐步带领你操作，请看[从这里开始]
 
 | 资料 | 用途与保存方式 |
 | --- | --- |
-| `follow-stack-0.1.11-ubuntu24.04-arm64-cp312.tar.gz` | 保存到电脑的 **Downloads（下载）**文件夹，暂时不要解压。 |
+| `follow-stack-0.1.12-ubuntu24.04-arm64-cp312.tar.gz` | 保存到电脑的 **Downloads（下载）**文件夹，暂时不要解压。 |
 | 匹配的 `.tar.gz.sha256` 文件 | 与安装包放在一起，用于检查下载是否完整且未改变。 |
 | 个人 relay token（信号服务访问令牌） | 私密保存，稍后在向导中输入，用于连接信号服务。 |
 | 预期的提供方公钥指纹 | 与就绪检查结果对比，确认信号提供方身份。 |
 | 支持联系方式及可选的 Discord 邀请 | 使用客户下载渠道提供的联系方式。 |
 
 从 Auto Quant 的可信渠道取得两个下载文件。Discord 可以提供附件或下载链接。
-本指南使用 **0.1.11**；如果你拿到的版本不同，请使用该版本包内的指南和匹配文件名，
+本指南使用 **0.1.12**；如果你拿到的版本不同，请使用该版本包内的指南和匹配文件名，
 不要混用不同版本的文件。
 
 准备好 **IBKR 模拟交易用户名、密码及模拟账户 ID**。账户 ID（例如虚构的
@@ -147,14 +147,14 @@ cd ~/Downloads
 保留末尾的冒号和 `Downloads/`。
 
 ```bash
-scp -i ./auto-quant.key follow-stack-0.1.11-ubuntu24.04-arm64-cp312.tar.gz follow-stack-0.1.11-ubuntu24.04-arm64-cp312.tar.gz.sha256 ubuntu@YOUR_OCI_PUBLIC_IP:Downloads/
+scp -i ./auto-quant.key follow-stack-0.1.12-ubuntu24.04-arm64-cp312.tar.gz follow-stack-0.1.12-ubuntu24.04-arm64-cp312.tar.gz.sha256 ubuntu@YOUR_OCI_PUBLIC_IP:Downloads/
 ```
 
 等待两个文件都上传完成。**回到窗口 A——Ubuntu**，一次运行一行：
 
 ```bash
 cd ~/Downloads
-sha256sum -c follow-stack-0.1.11-ubuntu24.04-arm64-cp312.tar.gz.sha256
+sha256sum -c follow-stack-0.1.12-ubuntu24.04-arm64-cp312.tar.gz.sha256
 ```
 
 **本步完成标志：**文件名后显示 **`OK`**。如果显示 `FAILED`，停止操作，从可信
@@ -163,8 +163,8 @@ sha256sum -c follow-stack-0.1.11-ubuntu24.04-arm64-cp312.tar.gz.sha256
 解压到 Ubuntu 家目录中的固定版本目录：
 
 ```bash
-tar -xzf follow-stack-0.1.11-ubuntu24.04-arm64-cp312.tar.gz -C ~
-cd ~/follow-stack-0.1.11-ubuntu24.04-arm64-cp312
+tar -xzf follow-stack-0.1.12-ubuntu24.04-arm64-cp312.tar.gz -C ~
+cd ~/follow-stack-0.1.12-ubuntu24.04-arm64-cp312
 ```
 
 `tar` 或 `cd` 没有输出通常是正常的。保留这个目录的原路径，已安装的 Gateway
@@ -214,7 +214,7 @@ ssh -i ./auto-quant.key ubuntu@YOUR_OCI_PUBLIC_IP
 **看到 Ubuntu 提示符后**，回到同一个目录继续：
 
 ```bash
-cd ~/follow-stack-0.1.11-ubuntu24.04-arm64-cp312
+cd ~/follow-stack-0.1.12-ubuntu24.04-arm64-cp312
 ./follow-stack setup
 ```
 
@@ -358,6 +358,11 @@ After login, press Enter to check readiness, or type later to pause:
 确认完整检查通过，包括行情、预期的提供方指纹，以及**你选择的模拟模式、合约和
 数量**。先解决报告中的问题。检查可能请求保证金估算，但不会提交可执行订单。
 
+启动前阅读[执行器如何保护持仓](EXECUTOR.zh-CN.md)。观察到入场成交后 30 秒仍无
+匹配止损，或已有止损意外失效后 60 秒仍未恢复时，本版本会启动紧急平仓。
+经验证的计划退出使用自身固定期限；确认空仓后也会清理自己的遗留止损。
+这些检查需要执行器保持运行，券商或网络延迟可能延迟实际平仓。
+
 启动后**可能立即提交模拟订单**，并启用虚拟机重启后的执行器自动启动。
 如果这正是你的意愿：
 
@@ -385,7 +390,7 @@ After login, press Enter to check readiness, or type later to pause:
 每次重新 SSH 登录，通常不在版本目录中。按第 2 步连接后先运行：
 
 ```bash
-cd ~/follow-stack-0.1.11-ubuntu24.04-arm64-cp312
+cd ~/follow-stack-0.1.12-ubuntu24.04-arm64-cp312
 ```
 
 | 目的 | 命令／操作 |

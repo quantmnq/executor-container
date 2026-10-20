@@ -8,7 +8,7 @@
 
 ## 构建与验证
 
-0.1.11 在 0.1.10 凭据隔离版本的基础上增加源码交付和许可声明。使用 Ubuntu 24.04
+0.1.12 在 GPL 源码发布版的基础上增加持仓保护机制。使用 Ubuntu 24.04
 ARM64、CPython 3.12 和 Docker。同步更新 `pyproject.toml`、启动器/测试的默认镜像
 标签和中英文示例中的版本号。旧发布压缩包保持不变。
 
@@ -19,7 +19,7 @@ bash -n follow follow-container follow-stack install.sh deploy/install-bytecode.
 python3.12 scripts/build-executor-container.py
 python3.12 scripts/test-executor-container.py
 python3.12 scripts/test-executor-isolation.py
-python3.12 scripts/collect-third-party-source.py --image follow-executor:0.1.11
+python3.12 scripts/collect-third-party-source.py --image follow-executor:0.1.12
 python3.12 scripts/build-container-kit.py --build dist/executor-container/BUILD.json --third-party dist/third-party/SOURCES.json
 python3.12 scripts/build-source.py --output dist/source --export dist/public-repository
 ```
@@ -42,20 +42,21 @@ LICENSE、NOTICE 和 THIRD_PARTY_LICENSES 保留在最终镜像。不要删除�
 重复隔离检查。验证压缩包校验值、源码哈希、中英文文档链接，以及私有状态未发生变化。
 自动化测试不能证明盈利能力，也不能代替实际未进行过的登录测试。
 
-## 在新的 GitHub 账户上发布
+## 发布经过审查的源码
 
-在所有者指定的新账户中创建一个**公开、空白**仓库。导出目录已经包含 LICENSE、README
-和 `.gitignore`，不要在 GitHub 另行生成冲突版本。只上传 `dist/public-repository/`
-内的文件。新仓库以这份审核过的源码为起点，不包含 VM 原有的 Git 历史。
-可以用 GitHub Desktop 发布这个导出文件夹，不需要让它访问 VM 的秘密文件。
-代码没有假定仓库网址。
+客户仓库为
+[quantmnq/executor-container](https://github.com/quantmnq/executor-container)。
+使用本版本经过审查的 `public-repository/` 导出内容更新它，保留现有公开提交历史。
+可以用 GitHub Desktop，在该公开仓库的克隆目录中复制并提交这些文件，不需要访问
+VM 的秘密文件。应包含 `.github/`、`.gitignore` 等公开隐藏文件，但不能复制工作
+VM 的 `.git/` 历史。代码没有假定仓库网址。
 
-创建与 0.1.11 对应的 release/tag，上传审核过的以下文件：
+创建与 0.1.12 对应的 release/tag，上传审核过的以下文件：
 
-- `follow-stack-0.1.11-ubuntu24.04-arm64-cp312.tar.gz`
+- `follow-stack-0.1.12-ubuntu24.04-arm64-cp312.tar.gz`
 - 对应的 `.tar.gz.sha256` 校验文件
-- `follow-executor-0.1.11-source.tar.gz`（安装包内部也包含）
-- `follow-executor-0.1.11-dependencies.tar.gz`
+- `follow-executor-0.1.12-source.tar.gz`（安装包内部也包含）
+- `follow-executor-0.1.12-dependencies.tar.gz`
 - 覆盖这些发布文件的 `SHA256SUMS`
 
 在二进制下载旁边免费提供对应源码下载。不能要求已经收到软件的用户续订信号服务，
@@ -68,6 +69,26 @@ LICENSE、NOTICE 和 THIRD_PARTY_LICENSES 保留在最终镜像。不要删除�
 依赖源码包比安装包大，正常安装时不必下载。将它放在 GitHub Release 附件中，不要
 放入 Git 源码目录。邀请客户前检查源码链接和校验值链接。私下交付每个客户的订阅令牌，
 并确认服务商公钥指纹。
+
+## 客户下载与 Discord
+
+将源码发布到公开 GitHub 仓库，将上述五个附件放在 **v0.1.12 Release**。
+在 GitHub 打开 **Releases → Draft a new release**，选择匹配的源码提交／标签，
+上传附件并填写版本说明。首次模拟账户接入可标记为 pre-release（预发布）。
+发布后先核实实际下载文件，再向客户发送链接。
+
+在 Discord 置顶发布页面链接，以及同一标签下的英文 `docs/SETUP.md` 和
+简体中文 `docs/SETUP.zh-CN.md`。一般客户只需下载 `follow-stack` 压缩包及对应
+`.sha256`，再按自己的语言阅读 SETUP 指南。GitHub 自动生成的 “Source code”
+下载不是安装包。全部指南和截图也已包含在安装包中。
+
+如果直接在 Discord 附加安装包，务必同时提供匹配校验文件，并在同一帖子中链接
+对应的应用源码和依赖源码。先检查频道附件大小限制；依赖源码包远大于安装包。
+优先提供一个 GitHub Release 链接，避免同一版本的文件散落在多条消息中。
+
+`START_HERE` 和 `AGENT_SETUP` 用于可选 AI 辅助安装；`CONTAINER_SETUP` 用于维护
+与恢复；`EXECUTOR` 解释交易及安全行为；均有中文版本。`DISCORD` 是个人交易通知
+设置文档，不是安装指南。此组合容器包的客户无需从 `SETUP_NATIVE` 或 `RELEASING` 开始。
 
 ## 推广与维护
 

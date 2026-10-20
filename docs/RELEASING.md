@@ -9,8 +9,8 @@ release evidence, credentials or journal. [Source/build details](SOURCE.md).
 
 ## Build and validate
 
-Version 0.1.11 adds source delivery and notices to the credential-isolated 0.1.10
-runtime. Use CPython 3.12 on Ubuntu 24.04 ARM64 with Docker. Set the version in
+Version 0.1.12 adds position-protection safeguards to the GPL source release.
+Use CPython 3.12 on Ubuntu 24.04 ARM64 with Docker. Set the version in
 `pyproject.toml`, the default image tag in the launcher/tests, and bilingual
 versioned examples together. Old release archives are immutable.
 
@@ -21,7 +21,7 @@ bash -n follow follow-container follow-stack install.sh deploy/install-bytecode.
 python3.12 scripts/build-executor-container.py
 python3.12 scripts/test-executor-container.py
 python3.12 scripts/test-executor-isolation.py
-python3.12 scripts/collect-third-party-source.py --image follow-executor:0.1.11
+python3.12 scripts/collect-third-party-source.py --image follow-executor:0.1.12
 python3.12 scripts/build-container-kit.py --build dist/executor-container/BUILD.json --third-party dist/third-party/SOURCES.json
 python3.12 scripts/build-source.py --output dist/source --export dist/public-repository
 ```
@@ -50,22 +50,23 @@ isolation using the final kit's launcher. Verify all archive checksums, matching
 source hashes, English/Chinese guide links and private-state preservation.
 Automated tests do not establish profitability or validate an unobserved login.
 
-## Publish on the new GitHub account
+## Publish the reviewed source
 
-Create a new **public**, empty repository on the owner's chosen account. The
-export already contains LICENSE, README and `.gitignore`; do not generate
-conflicting versions on GitHub. Upload only `dist/public-repository/` contents.
-The new repository starts with this reviewed source, without the working VM's
-old Git history. GitHub Desktop can publish that exported folder; it does not
-need access to this VM's secrets. No repository URL is assumed by the code.
+The customer repository is
+[quantmnq/executor-container](https://github.com/quantmnq/executor-container).
+Update it with the reviewed `public-repository/` export for this version,
+preserving its existing public history. GitHub Desktop can copy/commit these
+files in a clone of the public repository; it does not need access to this VM's
+secrets. Include hidden public files such as `.github/` and `.gitignore`, but
+never copy the working VM's `.git/` history. No repository URL is assumed by the code.
 
-Create a release/tag matching version 0.1.11 and attach all of these from the
+Create a release/tag matching version 0.1.12 and attach all of these from the
 reviewed release output:
 
-- `follow-stack-0.1.11-ubuntu24.04-arm64-cp312.tar.gz`
+- `follow-stack-0.1.12-ubuntu24.04-arm64-cp312.tar.gz`
 - Its `.tar.gz.sha256` checksum file
-- `follow-executor-0.1.11-source.tar.gz` (also included inside the kit)
-- `follow-executor-0.1.11-dependencies.tar.gz`
+- `follow-executor-0.1.12-source.tar.gz` (also included inside the kit)
+- `follow-executor-0.1.12-dependencies.tar.gz`
 - `SHA256SUMS` covering these release assets
 
 Offer the source downloads beside the binary download at no additional charge.
@@ -82,6 +83,32 @@ The dependency source archive is larger than the installer and is optional for
 normal installation. It belongs in GitHub Release assets, not the Git source
 tree. Review the release's source and checksum links before inviting customers.
 Supply personal relay tokens privately and confirm the provider fingerprint.
+
+## Customer downloads and Discord
+
+Use the public GitHub repository for source and a **v0.1.12 Release** for the
+five assets above. In GitHub, open **Releases → Draft a new release**, choose the
+matching source commit/tag, attach the assets and use the release notes. For the
+initial paper cohort, mark it as a pre-release. Review the actual published
+downloads before posting the link.
+
+Pin the release link in Discord alongside links to `docs/SETUP.md` (English)
+and `docs/SETUP.zh-CN.md` (简体中文) at that same tag. Normal customers download
+only the `follow-stack` archive and its `.sha256`, then follow their language's
+SETUP guide. GitHub's automatic “Source code” downloads are not the installer.
+All the guides and screenshots are also inside the kit.
+
+If attaching the installer directly to Discord, attach its matching checksum
+and link the corresponding application/dependency source downloads in the same
+post. Check the channel's attachment limit first; the dependency source archive
+is much larger than the installer. Prefer one GitHub Release link to avoid
+splitting a version's files across multiple messages.
+
+`START_HERE` and `AGENT_SETUP` are for optional AI-assisted installation;
+`CONTAINER_SETUP` covers maintenance/recovery; `EXECUTOR` explains trade and
+safety behavior. Each has a Chinese counterpart. `DISCORD` configures personal
+trade notifications; it is not the installation guide. Customers using this
+combined container kit should not begin with `SETUP_NATIVE` or `RELEASING`.
 
 ## Rollout and maintenance
 
