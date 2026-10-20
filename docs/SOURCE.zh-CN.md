@@ -52,7 +52,9 @@ Python 镜像依赖固定了版本和 wheel 哈希值，基础镜像固定了摘
 
 为兼容现有安装器，应用 wheel 仍采用 CPython 3.12 字节码，同时另行提供完整匹配的
 源代码。wheel 声明 GPL-3.0-or-later，并附带 LICENSE/NOTICE。
-`build-bytecode.py` 在匹配的 CPython 下确定性地重新生成 wheel；这不代表整个 Docker
+`build-bytecode.py` 使用全新的隔离解释器编译，避免已导入的应用影响 wheel 字节。
+要生成完全相同的 wheel，使用 `RELEASE.json` 中 `build_python_version` 记录的相同
+CPython 补丁版本；这不代表整个 Docker
 镜像已经实现逐字节可复现。镜像保留上游声明，并包含 `/usr/share/licenses/ibapi`
 及 `/usr/share/licenses/follow-executor`。
 

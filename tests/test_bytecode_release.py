@@ -111,6 +111,32 @@ class BytecodeReleaseTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Invalid public export"):
                 source_builder["public_files"]()
 
+    def test_loaded_application_cannot_change_rebuilt_wheel(self):
+        # On CPython 3.12.15, importing protection.pyc used to change marshal's
+        # reference flags in its next compilation, despite identical sources.
+        code = """
+import runpy
+import sys
+import tempfile
+import tomllib
+from pathlib import Path
+root = Path(sys.argv[1])
+builder = runpy.run_path(str(root / "scripts/build-bytecode.py"))
+project = tomllib.loads((root / "pyproject.toml").read_text())["project"]
+before = builder["wheel_bytes"](project)
+with tempfile.TemporaryDirectory() as directory:
+    wheel = Path(directory) / "application.whl"
+    wheel.write_bytes(before)
+    sys.path.insert(0, str(wheel))
+    import follow_executor.protection
+    assert str(follow_executor.protection.__file__).startswith(str(wheel))
+    after = builder["wheel_bytes"](project)
+    assert before == after, "Imported application changed compiled wheel bytes"
+"""
+        result = subprocess.run([sys.executable, "-I", "-c", code, str(ROOT)],
+                                capture_output=True, text=True, check=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_wheel_has_every_module_no_source_and_valid_records(self):
         wheel = next(self.output.glob("*.whl"))
         with zipfile.ZipFile(wheel) as archive:

@@ -13,9 +13,9 @@ import hashlib
 import importlib.util
 import io
 import json
-import py_compile
 import re
 import runpy
+import subprocess
 import sys
 import tarfile
 import tempfile
@@ -42,15 +42,26 @@ def wheel_bytes(project: dict) -> bytes:
     """Legacy module.pyc paths are necessary for imports without .py sources."""
     files = {}
     with tempfile.TemporaryDirectory(prefix="follow-bytecode-") as directory:
-        for source in sorted((ROOT / "src/follow_executor").rglob("*.py")):
-            relative = source.relative_to(ROOT / "src")
-            compiled = Path(directory) / relative.with_suffix(".pyc")
-            py_compile.compile(
-                str(source), cfile=str(compiled), dfile=relative.as_posix(),
-                doraise=True, optimize=0,
-                invalidation_mode=py_compile.PycInvalidationMode.UNCHECKED_HASH,
-            )
-            files[relative.with_suffix(".pyc").as_posix()] = compiled.read_bytes()
+        # CPython's marshal reference flags can depend on constants retained by
+        # imported application modules. Compile in a fresh interpreter so a test
+        # runner or an imported executor cannot change the resulting wheel.
+        compiler = """
+import py_compile
+import sys
+from pathlib import Path
+source_root, output = map(Path, sys.argv[1:])
+for source in sorted((source_root / "follow_executor").rglob("*.py")):
+    relative = source.relative_to(source_root)
+    py_compile.compile(
+        str(source), cfile=str(output / relative.with_suffix(".pyc")),
+        dfile=relative.as_posix(), doraise=True, optimize=0,
+        invalidation_mode=py_compile.PycInvalidationMode.UNCHECKED_HASH,
+    )
+"""
+        subprocess.run([sys.executable, "-I", "-S", "-c", compiler,
+                        str(ROOT / "src"), directory], check=True)
+        for compiled in sorted(Path(directory).rglob("*.pyc")):
+            files[compiled.relative_to(directory).as_posix()] = compiled.read_bytes()
     if "follow_executor/__init__.pyc" not in files:
         raise RuntimeError("Missing package initializer")
 
@@ -151,6 +162,7 @@ def build(output: Path, *, executor_image: dict | None = None, image_archive: Pa
         "name": project["name"], "version": version,
         "os": "ubuntu", "os_version": "24.04", "architecture": "aarch64",
         "python": "cpython-3.12", "bytecode_magic": importlib.util.MAGIC_NUMBER.hex(),
+        "build_python_version": sys.version.split()[0],
         "wheel": f"wheels/{wheel_name}", "wheel_sha256": sha256(files[f"wheels/{wheel_name}"]),
         "license": "GPL-3.0-or-later",
         "source": {"archive": f"sources/{source_name}", "sha256": sha256(source_blob)},

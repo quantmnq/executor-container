@@ -61,7 +61,9 @@ if upstream downloads later disappear; it is not an automatic offline build cach
 The application wheel remains CPython 3.12 bytecode for compatibility with the
 existing installer. Its complete matching source is provided separately. The
 wheel records GPL-3.0-or-later and carries LICENSE/NOTICE. `build-bytecode.py`
-rebuilds the wheel deterministically on matching CPython; this is not a claim
+compiles in a fresh isolated interpreter so previously imported application code
+cannot change the wheel bytes. For an identical wheel, use the same CPython patch
+version recorded as `build_python_version` in `RELEASE.json`; this is not a claim
 that the entire Docker image is bit-for-bit reproducible. The image retains
 upstream notices and includes `/usr/share/licenses/ibapi` and
 `/usr/share/licenses/follow-executor`.
