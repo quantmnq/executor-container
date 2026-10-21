@@ -15,6 +15,39 @@ from follow_executor.config import ConfigError
 
 
 class GatewayTests(unittest.TestCase):
+    def test_recovery_password_retries_invalid_input_and_mismatch_privately(self):
+        invalid = ["short", "too-long-password", "with spa", "abcdefgé", "abcdefg\t", "abcdefg\x7f"]
+        output = io.StringIO()
+        with (patch.object(gateway.getpass, "getpass", side_effect=[
+                *invalid, "first123", "other123", "valid!23", "valid!23",
+              ]) as prompt, contextlib.redirect_stdout(output)):
+            self.assertEqual(gateway.recovery_password(), "valid!23")
+        self.assertEqual(prompt.call_count, len(invalid) + 4)
+        self.assertIn("do not match", output.getvalue())
+        self.assertIn("Try again", output.getvalue())
+        for secret in [*invalid, "first123", "other123", "valid!23"]:
+            self.assertNotIn(secret, output.getvalue())
+
+    def test_recovery_password_can_be_cancelled(self):
+        for interruption in (KeyboardInterrupt, EOFError):
+            with (self.subTest(interruption=interruption),
+                  patch.object(gateway.getpass, "getpass", side_effect=["short", interruption]),
+                  contextlib.redirect_stdout(io.StringIO()), self.assertRaises(interruption)):
+                gateway.recovery_password()
+
+    def test_missing_gateway_settings_are_not_reported_as_permissions_error(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            with self.assertRaisesRegex(ConfigError, "gateway.json is missing"):
+                gateway.load_settings(directory)
+            (directory / "gateway.json").write_text("{}")
+            (directory / "gateway.json").chmod(0o600)
+            with self.assertRaisesRegex(ConfigError, "ibc.ini is missing"):
+                gateway.load_settings(directory)
+            (directory / "ibc.ini").symlink_to(directory / "absent")
+            with self.assertRaisesRegex(ConfigError, "private regular file"):
+                gateway.load_settings(directory)
+
     def test_schedule_covers_sunday_reset_and_dst(self):
         for zone, sunday in (("America/New_York", "12:00"), ("UTC", "12:00"), ("America/Los_Angeles", "09:00"),
                              ("Asia/Shanghai", "20:00"), ("Europe/London", "12:00")):
