@@ -30,6 +30,8 @@ docs/GATEWAY_DOCKER.md
 docs/GATEWAY_DOCKER.zh-CN.md
 docs/IBC.md
 docs/IBC.zh-CN.md
+docs/IBKR_ACCOUNT_SETUP.md
+docs/IBKR_ACCOUNT_SETUP.zh-CN.md
 docs/OCI_ARM.md
 docs/OCI_ARM.zh-CN.md
 docs/OPERATIONS.md

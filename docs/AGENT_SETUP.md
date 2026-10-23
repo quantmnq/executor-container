@@ -2,7 +2,8 @@
 
 English | [简体中文](AGENT_SETUP.zh-CN.md)
 
-Use this guide to help a customer install the **distributed bytecode package**.
+Use this guide in **Codex or Claude Code** to help a customer set up the
+**distributed follow-stack package from scratch**, including accounts and OCI.
 Read [SETUP.md](SETUP.md) for the commands and [START_HERE.md](../START_HERE.md)
 for the customer prompt. Work in the customer's language. No source checkout,
 decompilation, development tools or code changes are needed. This guide is not a
@@ -18,7 +19,8 @@ customer's explicit mode/size confirmation. Do not install a host venv or Java.
 ## Establish the starting point
 
 Ask a small first group of questions: preferred language; laptop OS; whether an
-OCI VM and SSH connection already exist; new setup, interrupted setup or upgrade.
+OCI VM and SSH connection already exist; IBKR dedicated-account and secondary-login
+preparation complete or pending; new setup, interrupted setup or upgrade.
 Locate the archive, checksum and extracted folder. Identify whether each command
 runs on **the customer's computer**, **Ubuntu via SSH**, or **the VNC desktop**.
 Use the release version in `RELEASE.json` and filenames actually supplied.
@@ -28,7 +30,9 @@ the customer to perform. Do not claim to have run a command or clicked a screen
 that you cannot access. Do not install or sign into an AI tool on the customer's
 behalf without their request; use its official instructions when needed.
 
-Before changes on an existing VM, check the executor and Gateway service states
+For a combined kit on an existing VM, use its installed `./follow-stack service-status`
+and `./follow-stack gateway status` first; do not infer inactivity from a missing
+native unit. For native kits, check the executor and Gateway service states
 with `systemctl --user is-active follow-executor.service follow-gateway.service`.
 Inactive/not-found states can be expected on first setup; distinguish these from
 SSH or user-session failures. Inspect the current unit's `WorkingDirectory` and
@@ -58,7 +62,8 @@ unless the customer explicitly requests the appropriate change procedure.
 | IBKR username/password, relay token, VNC or sudo password | Customer enters these directly in their own terminal or official login UI. Never request them in chat, command arguments or environment variables. |
 | Discord one-time code | Have the customer run linking in their terminal and submit the displayed code to AQ Bot's `/link`; do not retain the code. |
 
-For `./scripts/gateway-desktop.sh`, `./follow gateway configure`, and
+For `./follow-stack setup`, `./follow-stack gateway configure`,
+`./scripts/gateway-desktop.sh`, `./follow gateway configure`, and
 `./follow configure`, hand the command to the customer's **own interactive SSH
 terminal in the release directory** when it needs private input. Do not launch a
 hidden-password prompt in an agent-only terminal where the customer cannot type.
@@ -89,6 +94,55 @@ For combined-kit service checks use `./follow-stack service-status` and
 Follow SETUP's full five-step wizard, quote readiness and explicit start flow;
 do not apply the native checkpoint table below. Use `follow-stack` for subsequent
 container status/check/Discord commands; do not run native `follow configure`.
+
+## Account and cloud checkpoints — both package types
+
+Do these before the installation wizard. Help from the first unfinished step,
+even when the customer has no Oracle or IBKR account yet. Read the linked guide
+before each stage; give one browser/phone action at a time and verify completion.
+
+| Stage | Action and completion evidence |
+| --- | --- |
+| Oracle account and region | Follow [OCI signup](OCI_ARM.md#oci-account). Recommend **US West (San Jose), `us-sanjose-1`** for a new Home Region. Explain it cannot be changed; preserve an existing region. Customer completes identity verification and terms. |
+| Oracle Mobile 2FA | At [enrollment](OCI_ARM.md#oci-mfa), **first select “Offline mode or use another authenticator app”**, then scan/enroll and verify. Customer handles QR code, secret key, recovery codes and OTP privately. Preserve working existing MFA. |
+| Payment before VCN | **Before opening the VCN wizard**, guide **Billing & Cost Management → Upgrade and Manage Payment → add/verify payment method → upgrade Free Tier to Pay As You Go**. Customer reviews costs and accepts terms. Require confirmation that **Plan Type is Pay As You Go**; pending is not complete. If declined or unavailable, pause this stage. |
+| Network and VM | After the payment checkpoint, follow [VCN](OCI_ARM.md#oci-network), restricted SSH and [instance creation](OCI_ARM.md#oci-instance): **Ubuntu 24.04 ARM64, A1 Flex, 2 OCPUs / 12 GB RAM**. Customer reviews the estimate. Verify SSH, `aarch64`, Python 3.12 and clock sync. Reuse a compatible existing VM; do not resize/rebuild it during active trading. |
+| IBKR additional account | Follow [IBKR preparation](IBKR_ACCOUNT_SETUP.md). Help with initial signup if needed, then **User icon → Settings → Trading → Open an Additional Account**. Customer completes the application and approvals, or confirms an existing dedicated account. Do not choose financial/experience answers or initiate funding/transfers. |
+| IBKR secondary username | Guide **User icon → Settings → User & Access Rights → Users → “+” Add**, choosing **Yes** for a secondary username for the same holder. Reserve different usernames for OCI Gateway and phone trading. Verify security enrollment, account access, futures and market data; explain any extra data fees. Verify the actual **paper** login separately. Never request the usernames/passwords in chat or log into mobile trading with Gateway's username. |
+| Futures permission | During the application select **Futures** and the needed US market. Customer enters **actual** experience years, trades and knowledge; several years only if true. For an existing account use **Settings → Trading → Trading Permissions**. Wait for approval; do not invent years or change profile answers to bypass eligibility. |
+| Market-data forms and CME | In **Settings → Trading Platform → Market Data Subscriptions**, click each **gear** for **Market Data API Acknowledgement** and **Market Data Subscriber Status** and finish both forms. Select **Non-Professional** only when the customer's truthful answers qualify. In **Current Subscriptions → gear → US/North America → Level 1**, select **CME Real-Time (L1)**, listed at **$1.55/month** for Non-Professional. Customer confirms the actual recurring fee and agreements. Verify saved forms, active subscription for the Gateway username and intended paper-data sharing/access. Follow the [full IBKR steps](IBKR_ACCOUNT_SETUP.md). |
+
+Record each checkpoint as complete/pending in the progress note, without account,
+card or credential details. Do not create duplicate accounts/users on resume.
+An unavailable option or pending Oracle/IBKR approval is a specific unfinished
+checkpoint, not permission to bypass it.
+
+## Combined-kit installation checkpoints
+
+After account/cloud preparation, follow [SETUP.md](SETUP.md) in order:
+
+1. Verify the archive against its trusted checksum and transfer it to Ubuntu.
+   Extract to a permanent folder; install through **`./follow-stack setup`**.
+2. Hand the interactive wizard to the customer's own SSH terminal. Explain
+   paper account ID, instrument/size, dedicated Gateway paper login, relay token
+   and schedule first. Never answer hidden prompts through the agent transcript.
+3. Follow the Docker reboot instruction once needed, save progress, reconnect,
+   and rerun the same command. Saved steps and credentials are reused.
+4. Customer approves Gateway authentication. The wizard configures API settings;
+   show the bundled screenshots only if manual inspection is needed. Use a
+   private SSH tunnel for recovery; keep ports 4001/4002/5901 private.
+5. With trading still stopped, require **`./follow-stack check`** to pass account,
+   relay, margin and quote checks. Have the customer sign into phone trading
+   using the other username, then recheck that Gateway remains connected.
+   If quote verification waits on the market, record it as pending.
+6. If Discord is wanted, follow the bundled screenshot and linking steps with
+   `./follow-stack discord link`, test DM, then `./follow-stack discord enable`.
+7. Present the verified paper mode, root and quantity. Obtain explicit agreement
+   before `./follow-stack start`; otherwise finish configured with trading stopped.
+
+Use bounded logs such as `journalctl --user -u 'follow-executor-container-*.service' -n 60 --no-pager`, plus public status
+commands. Distinguish a running Gateway process from authenticated account/quote
+readiness and from observed paper trades. Do not place test orders to finish setup.
 
 ## Native-kit checkpoints only
 
@@ -188,8 +242,14 @@ trading start was authorized/executed, next action and a sanitized error summary
 Exclude passwords, usernames, account IDs, tokens, linking codes, key contents,
 raw config/logs and trade/signal payloads. Record customer decisions accurately;
 an old note is not authorization for a different account, size or mode.
+Include completion/pending flags for Oracle MFA, Pay As You Go, VM, IBKR additional
+account, secondary login, paper access and the phone/Gateway coexistence check.
+Include futures approval, API acknowledgement, subscriber status and CME L1
+completion/pending flags; exclude personal questionnaire answers.
 
 On resuming, read the note and recheck service states and completed checkpoints.
+For combined kits use `./follow-stack service-status`, `./follow-stack gateway status`
+and, only while stopped, `./follow-stack check`; the commands below are for native kits.
 A stale note does not justify reinstalling, stopping a running service, or
 repeating a start/consent. Use `./follow gateway status` when Gateway configuration
 exists, `./follow status` for journal information, and `./follow check` only while

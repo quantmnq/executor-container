@@ -2,16 +2,18 @@
 
 English | [简体中文](START_HERE.zh-CN.md)
 
-**First-time terminal user?** Follow the [beginner setup guide](docs/SETUP.md).
-It shows how to open a terminal on Windows/Mac, connect to Ubuntu, transfer the
-kit and answer the wizard. Both Gateway and executor use containers. An AI
-assistant is optional. The Chinese guide is [here](docs/SETUP.zh-CN.md).
+**Start with Codex or Claude Code.** Open the extracted package as its workspace
+and paste the prompt in step 2. The assistant guides the setup from scratch.
+The [beginner setup guide](docs/SETUP.md)
+shows how to open a terminal on Windows/Mac, connect to Ubuntu, transfer the
+kit and answer the wizard. Both Gateway and executor use containers.
+The Chinese guide is [here](docs/SETUP.zh-CN.md).
 
 If your archive is named `follow-executor-…` rather than `follow-stack-…`, use
-[the native guide](docs/SETUP_NATIVE.md). The optional AI workflow below applies
+[the native guide](docs/SETUP_NATIVE.md). The AI workflow below applies
 to either kit; the assistant must identify the package before choosing commands.
 
-You can ask Codex, Claude Code, or another agent with file and terminal access to
+Use Codex or Claude Code with file and terminal access to
 read the installation guide and help you through setup. You do not need to read
 the whole guide first. The assistant runs the technical steps it can and explains
 the browser, terminal and phone actions that need you.
@@ -21,7 +23,8 @@ the browser, terminal and phone actions that need you.
 Get the **installation archive and matching checksum**, your personal relay token,
 the expected signal-provider public-key fingerprint, and the optional Auto Quant
 Discord invitation from Auto Quant. Keep the original download files. Have your
-IBKR paper account and IBKR Mobile ready.
+IBKR Mobile ready. If you do not have an IBKR account or paper login yet, the
+assistant starts with [account preparation](docs/IBKR_ACCOUNT_SETUP.md).
 
 You need your own access to the AI tool; Auto Quant does not install it or include
 its subscription. Sign in using that tool's normal setup. The tool must be able
@@ -50,6 +53,23 @@ those files automatically:
 > `follow-stack setup` for the combined kit; `docs/SETUP_NATIVE.md` for a native kit.
 > Ask what computer I use and whether I already have an
 > Ubuntu VM, then check what is already complete. Carry out the technical steps
+> from account preparation onward. For a new OCI account, recommend Home Region
+> US West (San Jose), us-sanjose-1. At Oracle Mobile 2FA, have me first check
+> “Offline mode or use another authenticator app” before scanning. Before any VCN
+> creation, guide me to Billing & Cost Management → Upgrade and Manage Payment,
+> add/verify a payment method, and wait for Plan Type to change from Free Tier to
+> Pay As You Go. Have me review and accept the costs and terms. Create the new
+> Ubuntu ARM64 instance with 2 OCPUs and 12 GB RAM. Follow
+> `docs/IBKR_ACCOUNT_SETUP.md`: Open an Additional Account in Settings, then
+> User icon → Settings → User & Access Rights → Users → “+” Add to create a
+> secondary username for me. Reserve separate usernames for Gateway and phone
+> trading. Select Futures and have me report my actual experience; several years
+> must be selected only when true. Complete the gear-icon forms for Market Data
+> API Acknowledgement and Market Data Subscriber Status; choose Non-Professional
+> only if I qualify. Select CME Real-Time (L1), listed at $1.55/month for
+> Non-Professional users, and have me confirm the current recurring fee.
+> Verify the paper login, account and data access before the wizard. Reuse
+> verified existing resources and accounts. Continue the technical steps
 > you can and ask for missing information as it becomes necessary. Give me one
 > action at a time when you need my browser, terminal or phone. Have me enter
 > passwords and tokens directly into my own terminal, never this chat, and do not
@@ -67,7 +87,8 @@ customers do not need one.
 
 ## 3. Answer the assistant and complete the personal steps
 
-The assistant will ask about your computer, existing VM, paper account, chosen
+The assistant will ask about your computer, existing VM, dedicated IBKR account
+and secondary login, paper account, chosen
 instrument/quantity, and whether you want Discord notifications. It will check
 the download, install the software, and work through the existing setup prompts.
 

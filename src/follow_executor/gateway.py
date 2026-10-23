@@ -241,6 +241,9 @@ def configure(executor_path: Path, directory: Path, release: Path, *,
             gateway_settings = {"backend": "native"}
         print("IBC stores your IBKR login locally in a private file on this VM.")
         print("It initiates login; you still approve authentication in IBKR Mobile.")
+        print("Use a dedicated Gateway username; keep a different username for phone trading.")
+        print("A phone trading login with the same username can disconnect this Gateway session.")
+        print("First complete docs/IBKR_ACCOUNT_SETUP.md, including the paper-login check.")
         print("Close any manually launched Gateway before starting IBC. Use an IB Key / Mobile account.")
         if backend == "native":
             gateway = safe_path(ask("Gateway installation directory", old.get(

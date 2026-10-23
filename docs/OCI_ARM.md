@@ -14,9 +14,11 @@ The screenshots below come from Oracle and Canonical (the company behind Ubuntu)
 They load from those companies' websites and need an Internet connection. Click a
 screenshot to enlarge it. These are official tutorial examples, not screenshots of
 your account; names, dates and layouts may differ. Follow the values written in
-this guide. Instructions checked on **2026-10-11**.
+this guide. Instructions checked on **2026-10-22**.
 
 - [1. Create an Oracle account](#oci-account)
+- [1a. Set up Oracle two-factor authentication](#oci-mfa)
+- [1b. Add a payment method and upgrade before creating a VCN](#oci-payment)
 - [2. Create its network](#oci-network)
 - [3. Allow your computer to connect](#oci-firewall)
 - [4. Create the Ubuntu instance and save its key](#oci-instance)
@@ -28,7 +30,8 @@ this guide. Instructions checked on **2026-10-11**.
 ## 1. Create an Oracle account
 
 **Where: your computer's web browser.** If you already have an OCI account, sign in
-at [Oracle Cloud](https://cloud.oracle.com/) and go to step 2.
+at [Oracle Cloud](https://cloud.oracle.com/), check [two-factor authentication](#oci-mfa),
+then complete the [payment and plan checkpoint](#oci-payment) before step 2.
 
 Have your email, phone and payment card ready. Oracle may ask for these to verify
 your identity. Read the charges and terms shown to you; creating this account is
@@ -46,7 +49,10 @@ that every resource you select stays free. See [Oracle's Free Tier explanation](
 
 4. Create your password. Record the **Cloud Account Name**, which identifies your
    Oracle account when signing in.
-5. Choose your **Home Region**, the geographic location for this setup. Choose
+5. For **Home Region**, we recommend **US West (San Jose)**, identifier
+   **`us-sanjose-1`**. This is the suggested location for a new Auto Quant setup,
+   subject to availability. [Oracle's region list](https://docs.oracle.com/en-us/iaas/Content/General/Concepts/regions.htm).
+   Choose
    carefully: Oracle says it cannot be changed after signup. Always Free compute
    must be created in that home region; availability still depends on capacity.
 6. Complete the address, phone and payment verification requested by Oracle,
@@ -61,6 +67,55 @@ that every resource you select stays free. See [Oracle's Free Tier explanation](
 
 **You are ready when:** you can see the Oracle Cloud Console, the website used to
 manage your cloud computer. Keep your chosen home region selected at the top.
+An existing home region cannot be changed; keep it and review capacity rather
+than creating another Oracle account just to match the recommendation.
+
+<a id="oci-mfa"></a>
+### 1a. Set up Oracle Mobile two-factor authentication
+
+**Where: your browser and your own phone.** When Oracle asks you to configure
+Oracle Mobile Authenticator / the mobile app, **first select the checkbox
+“Offline mode or use another authenticator app”** (some screens say
+“Offline Mode or Use Another Authenticator App”). Do this **before scanning the
+QR code** so you enroll using the offline/authenticator flow.
+
+Add the account in your authenticator app using the displayed QR code, or choose
+**Enter key manually** if necessary. Enter the current one-time code in Oracle
+and finish verification. Keep the QR code, setup key, recovery codes and one-time
+codes private; do not send them to Codex, Claude Code, Auto Quant or chat.
+Offline mode still uses two-factor authentication.
+[Oracle's enrollment instructions](https://docs.oracle.com/en-us/iaas/Content/Identity/mobileauthapp/add-account-oma-app-entering-key-manually.htm).
+
+**You are ready when:** Oracle confirms enrollment and you can complete sign-in.
+If MFA is already working, preserve it; do not reset it to repeat this walkthrough.
+
+<a id="oci-payment"></a>
+### 1b. Add payment and switch to Pay As You Go — before creating a VCN
+
+**Where: Oracle Cloud Console in your browser.** Complete this checkpoint before
+opening the VCN wizard. This customer setup uses a **Pay As You Go** tenancy.
+
+1. Open **☰ → Billing & Cost Management → Upgrade and Manage Payment** (under
+   **Billing** in some layouts).
+2. Under payment details, **add a payment method**. If the signup card is already
+   listed, verify it, or select **Change Payment Method** to use another card.
+   Enter card details directly in Oracle; never put them in the assistant chat.
+3. Review the **Pay As You Go** terms and charges, accept them yourself, and
+   complete **Upgrade your account → Confirm account upgrade**.
+4. Wait until **Subscription Information → Plan Type** changes from **Free Tier**
+   to **Pay As You Go**. Adding a card or seeing “upgrade in progress” does not
+   complete this checkpoint. Oracle says processing can take a day or two.
+
+Pay As You Go can charge for billable usage; review the estimate again before
+creating resources. Upgrading does not guarantee A1 capacity or free operation.
+If the plan is already Pay As You Go, verify it and continue without upgrading
+again. If the upgrade is pending, unavailable or declined, pause here and use
+Oracle's account support; do not proceed to VCN creation as if it succeeded.
+[Oracle's payment and upgrade instructions](https://docs.oracle.com/en-us/iaas/Content/Billing/Tasks/changingpaymentmethod.htm).
+
+**You are ready when:** a payment method is present and Plan Type is **Pay As You Go**.
+Codex/Claude Code should ask you to confirm that result before the next step;
+you do not need to share card details or a billing screenshot.
 
 <a id="oci-network"></a>
 ## 2. Create a network for Auto Quant
@@ -68,6 +123,7 @@ manage your cloud computer. Keep your chosen home region selected at the top.
 **Where: Oracle Cloud Console in your browser.** A **VCN** is the network your
 cloud computer uses. A **compartment** is a folder for Oracle resources. In a new
 personal account, use your account's **root** compartment throughout this guide.
+First confirm the [payment and Pay As You Go checkpoint](#oci-payment) is complete.
 
 1. Open the top-left navigation menu **☰ → Networking → Virtual cloud networks**.
 2. Select **Start VCN Wizard**. In some layouts it is under **Actions**.
@@ -156,7 +212,7 @@ of the cloud computer. For this Auto Quant package, use these values:
 | Image | **Canonical Ubuntu 24.04 LTS**, **ARM64 / aarch64** |
 | Shape | **Ampere → VM.Standard.A1.Flex** |
 | OCPUs | **2** |
-| Memory | **8 GB** |
+| Memory | **12 GB** |
 
 In **Image and shape**, use **Change image → Ubuntu**, then choose 24.04 and its
 ARM64/aarch64 variant. Prefer the full image over Minimal when offered. Use
@@ -169,7 +225,7 @@ and ARM64, even if an example screenshot shows another version.
 
 *Screenshot: Canonical's [image guide](https://ubuntu.com/docs/oracle/oracle-how-to/find-ubuntu-images/). Choose **24.04 ARM64/aarch64** for Auto Quant, regardless of the example's selected release.*
 
-Two OCPUs and 8 GB are a starting allocation for Gateway and its desktop, not a
+Two OCPUs and 12 GB are a starting allocation for Gateway and its desktop, not a
 tested minimum or a promise of free service. Check your own available allowance,
 other resources and the cost estimate. If A1 has no capacity, try another
 availability domain offered within your region or retry later. An AMD/Intel
@@ -203,7 +259,7 @@ become `auto-quant.key.key` or `auto-quant.key.txt`.
 
 Keep the standard boot disk size/performance and other settings; no extra disk
 is needed for this walkthrough. Review any estimated charges. Before **Create**,
-confirm **Ubuntu 24.04**, **A1 ARM64**, **2 OCPUs / 8 GB**, a **public subnet and
+confirm **Ubuntu 24.04**, **A1 ARM64**, **2 OCPUs / 12 GB**, a **public subnet and
 public IPv4**, and that you have saved the private key.
 
 Click **Create**, then wait for the instance status to become **Running**. On

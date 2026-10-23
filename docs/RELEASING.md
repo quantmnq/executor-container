@@ -9,7 +9,8 @@ release evidence, credentials or journal. [Source/build details](SOURCE.md).
 
 ## Build and validate
 
-Version 0.1.12 adds position-protection safeguards to the GPL source release.
+Version 0.2.0 adds account/cloud checkpoints and makes Codex or Claude Code
+the main customer onboarding path. Trading protection rules are retained.
 Use CPython 3.12 on Ubuntu 24.04 ARM64 with Docker. Set the version in
 `pyproject.toml`, the default image tag in the launcher/tests, and bilingual
 versioned examples together. Old release archives are immutable.
@@ -21,7 +22,7 @@ bash -n follow follow-container follow-stack install.sh deploy/install-bytecode.
 python3.12 scripts/build-executor-container.py
 python3.12 scripts/test-executor-container.py
 python3.12 scripts/test-executor-isolation.py
-python3.12 scripts/collect-third-party-source.py --image follow-executor:0.1.12
+python3.12 scripts/collect-third-party-source.py --image follow-executor:0.2.0
 python3.12 scripts/build-container-kit.py --build dist/executor-container/BUILD.json --third-party dist/third-party/SOURCES.json
 python3.12 scripts/build-source.py --output dist/source --export dist/public-repository
 ```
@@ -60,13 +61,13 @@ files in a clone of the public repository; it does not need access to this VM's
 secrets. Include hidden public files such as `.github/` and `.gitignore`, but
 never copy the working VM's `.git/` history. No repository URL is assumed by the code.
 
-Create a release/tag matching version 0.1.12 and attach all of these from the
+Create a release/tag matching version 0.2.0 and attach all of these from the
 reviewed release output:
 
-- `follow-stack-0.1.12-ubuntu24.04-arm64-cp312.tar.gz`
+- `follow-stack-0.2.0-ubuntu24.04-arm64-cp312.tar.gz`
 - Its `.tar.gz.sha256` checksum file
-- `follow-executor-0.1.12-source.tar.gz` (also included inside the kit)
-- `follow-executor-0.1.12-dependencies.tar.gz`
+- `follow-executor-0.2.0-source.tar.gz` (also included inside the kit)
+- `follow-executor-0.2.0-dependencies.tar.gz`
 - `SHA256SUMS` covering these release assets
 
 Offer the source downloads beside the binary download at no additional charge.
@@ -86,7 +87,7 @@ Supply personal relay tokens privately and confirm the provider fingerprint.
 
 ## Customer downloads and Discord
 
-Use the public GitHub repository for source and a **v0.1.12 Release** for the
+Use the public GitHub repository for source and a **v0.2.0 Release** for the
 five assets above. In GitHub, open **Releases → Draft a new release**, choose the
 matching source commit/tag, attach the assets and use the release notes. For the
 initial paper cohort, mark it as a pre-release. Review the actual published
@@ -104,7 +105,7 @@ post. Check the channel's attachment limit first; the dependency source archive
 is much larger than the installer. Prefer one GitHub Release link to avoid
 splitting a version's files across multiple messages.
 
-`START_HERE` and `AGENT_SETUP` are for optional AI-assisted installation;
+`START_HERE` and `AGENT_SETUP` are the primary Codex/Claude Code setup path;
 `CONTAINER_SETUP` covers maintenance/recovery; `EXECUTOR` explains trade and
 safety behavior. Each has a Chinese counterpart. `DISCORD` configures personal
 trade notifications; it is not the installation guide. Customers using this
@@ -115,7 +116,7 @@ combined container kit should not begin with `SETUP_NATIVE` or `RELEASING`.
 Use the English/Chinese beginner setup guides. Start with two or three paper
 customers, including first-time terminal users. Their own readiness checks must
 pass; setup never starts trading. Review mode, instrument and size before their
-explicit start. An AI assistant is optional. Existing installations require a
+explicit start. Customers begin in Codex or Claude Code with START_HERE. Existing installations require a
 stopped-and-flat migration that preserves their journals and regenerates the
 service to obtain the credential-isolation mounts. A new image alone is not enough.
 

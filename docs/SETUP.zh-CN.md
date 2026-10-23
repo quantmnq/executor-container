@@ -2,9 +2,10 @@
 
 [English](SETUP.md) | 简体中文
 
-本指南使用 `follow-stack-0.1.12-ubuntu24.04-arm64-cp312.tar.gz` 安装包，
+本指南使用 `follow-stack-0.2.0-ubuntu24.04-arm64-cp312.tar.gz` 安装包，
 将 **Gateway 和 Auto Quant 执行器一起安装在容器中**。先使用 IBKR **模拟账户
-（paper）**，不涉及真实资金交易。你无需编写代码、使用 GitHub、构建镜像或安装 AI 助手。
+（paper）**，不涉及真实资金交易。请用 **Codex 或 Claude Code** 按[从这里开始](../START_HERE.zh-CN.md)
+打开安装包并粘贴提示，让助手从零指导。你无需编写代码、使用 GitHub 或构建镜像。
 
 如果你的压缩包以 `follow-executor-…` 开头，请使用[原生安装指南](SETUP_NATIVE.zh-CN.md)。
 如果这台虚拟机已经安装 Auto Quant，请先看[更新说明](#update)，不要直接重装。
@@ -43,7 +44,8 @@
 8. [决定是否启动模拟交易](#paper)
 9. [日常使用、更新与帮助](#daily)
 
-AI 助手是可选的。如需它逐步带领你操作，请看[从这里开始](../START_HERE.zh-CN.md)。
+请使用 **Codex 或 Claude Code** 按[从这里开始](../START_HERE.zh-CN.md)打开安装包、粘贴提示，
+让助手从零逐步带领你设置。本指南也提供手动操作的完整命令。
 个人登录及手机操作仍需你自己完成。
 
 <a id="prepare"></a>
@@ -54,17 +56,28 @@ AI 助手是可选的。如需它逐步带领你操作，请看[从这里开始]
 
 | 资料 | 用途与保存方式 |
 | --- | --- |
-| `follow-stack-0.1.12-ubuntu24.04-arm64-cp312.tar.gz` | 保存到电脑的 **Downloads（下载）**文件夹，暂时不要解压。 |
+| `follow-stack-0.2.0-ubuntu24.04-arm64-cp312.tar.gz` | 保存到电脑的 **Downloads（下载）**文件夹，暂时不要解压。 |
 | 匹配的 `.tar.gz.sha256` 文件 | 与安装包放在一起，用于检查下载是否完整且未改变。 |
 | 个人 relay token（信号服务访问令牌） | 私密保存，稍后在向导中输入，用于连接信号服务。 |
 | 预期的提供方公钥指纹 | 与就绪检查结果对比，确认信号提供方身份。 |
 | 支持联系方式及可选的 Discord 邀请 | 使用客户下载渠道提供的联系方式。 |
 
 从 Auto Quant 的可信渠道取得两个下载文件。Discord 可以提供附件或下载链接。
-本指南使用 **0.1.12**；如果你拿到的版本不同，请使用该版本包内的指南和匹配文件名，
+本指南使用 **0.2.0**；如果你拿到的版本不同，请使用该版本包内的指南和匹配文件名，
 不要混用不同版本的文件。
 
-准备好 **IBKR 模拟交易用户名、密码及模拟账户 ID**。账户 ID（例如虚构的
+先完成 [IBKR 账户及第二用户名准备](IBKR_ACCOUNT_SETUP.zh-CN.md)：
+在 **Settings → Open an Additional Account** 开立附加账户，再到
+**User icon → Settings → User & Access Rights → Users → “+” Add**，为本人创建第二用户名。
+OCI Gateway 与手机交易使用不同登录；手机用 Gateway 的同一用户名交易可能踢掉 Gateway。
+已有合适的专用账户及登录时核对并复用。必须单独核验模拟登录，创建实盘第二用户名不代表已获得模拟访问权限。
+IBKR 申请中选择 **Futures**，如实填写经验年数，确有数年经验才选择对应区间。
+设置前点击 **Market Data API Acknowledgement** 和 **Market Data Subscriber Status** 的**齿轮**，
+完成两份表单。符合资格时下拉菜单选 **Non-Professional**，在 **Level 1** 选
+**CME Real-Time (L1)**，非专业公开价 **每月 $1.55**；自行确认当前循环费用。
+[IBKR 指南](IBKR_ACCOUNT_SETUP.zh-CN.md)说明表单、交易权限及模拟行情访问。
+
+准备好 **专用 IBKR 模拟交易用户名、密码及模拟账户 ID**。账户 ID（例如虚构的
 `DU1234567`）**不是登录用户名**。在 IBKR 模拟账户的账户选择器或模拟账户结单中
 查找实际 ID。不要照抄示例，也不要填入真实账户 ID。不确定时请联系 Auto Quant
 协助确认，不要将账户资料贴到公开聊天中。
@@ -82,8 +95,13 @@ Docker Engine 直接从 **Docker 官方 Ubuntu 软件源**下载；Gateway 从�
 ## 2. 创建或连接 Ubuntu
 
 **操作位置：你自己电脑的浏览器，然后是终端。**按[图文 Oracle Cloud 指南](OCI_ARM.zh-CN.md)
-完成注册、费用／容量选择、网络设置、SSH 私钥下载及首次连接。选择
-**Ubuntu 24.04 LTS、Ampere A1 / ARM64**。可从 2 OCPU、8 GB 内存开始；
+完成注册、费用／容量选择、网络设置、SSH 私钥下载及首次连接。
+新账户 Home Region 建议 **US West (San Jose)，`us-sanjose-1`**。
+Oracle Mobile 双重验证时，**先勾选 “Offline mode or use another authenticator app” 再扫码**。
+**创建 VCN 前**，先到 **Billing & Cost Management → Upgrade and Manage Payment** 添加或核对付款方式，
+自行审阅并接受升级费用和条款，等待 Plan Type 从 **Free Tier** 变为 **Pay As You Go**。
+详见[必需的付款检查点](OCI_ARM.zh-CN.md#oci-payment)。选择
+**Ubuntu 24.04 LTS、Ampere A1 / ARM64**。可从 2 OCPU、12 GB 内存开始；
 创建前确认页面显示的费用。
 
 已有虚拟机？按该指南的[连接](OCI_ARM.zh-CN.md#oci-connect)和
@@ -147,14 +165,14 @@ cd ~/Downloads
 保留末尾的冒号和 `Downloads/`。
 
 ```bash
-scp -i ./auto-quant.key follow-stack-0.1.12-ubuntu24.04-arm64-cp312.tar.gz follow-stack-0.1.12-ubuntu24.04-arm64-cp312.tar.gz.sha256 ubuntu@YOUR_OCI_PUBLIC_IP:Downloads/
+scp -i ./auto-quant.key follow-stack-0.2.0-ubuntu24.04-arm64-cp312.tar.gz follow-stack-0.2.0-ubuntu24.04-arm64-cp312.tar.gz.sha256 ubuntu@YOUR_OCI_PUBLIC_IP:Downloads/
 ```
 
 等待两个文件都上传完成。**回到窗口 A——Ubuntu**，一次运行一行：
 
 ```bash
 cd ~/Downloads
-sha256sum -c follow-stack-0.1.12-ubuntu24.04-arm64-cp312.tar.gz.sha256
+sha256sum -c follow-stack-0.2.0-ubuntu24.04-arm64-cp312.tar.gz.sha256
 ```
 
 **本步完成标志：**文件名后显示 **`OK`**。如果显示 `FAILED`，停止操作，从可信
@@ -163,8 +181,8 @@ sha256sum -c follow-stack-0.1.12-ubuntu24.04-arm64-cp312.tar.gz.sha256
 解压到 Ubuntu 家目录中的固定版本目录：
 
 ```bash
-tar -xzf follow-stack-0.1.12-ubuntu24.04-arm64-cp312.tar.gz -C ~
-cd ~/follow-stack-0.1.12-ubuntu24.04-arm64-cp312
+tar -xzf follow-stack-0.2.0-ubuntu24.04-arm64-cp312.tar.gz -C ~
+cd ~/follow-stack-0.2.0-ubuntu24.04-arm64-cp312
 ```
 
 `tar` 或 `cd` 没有输出通常是正常的。保留这个目录的原路径，已安装的 Gateway
@@ -214,7 +232,7 @@ ssh -i ./auto-quant.key ubuntu@YOUR_OCI_PUBLIC_IP
 **看到 Ubuntu 提示符后**，回到同一个目录继续：
 
 ```bash
-cd ~/follow-stack-0.1.12-ubuntu24.04-arm64-cp312
+cd ~/follow-stack-0.2.0-ubuntu24.04-arm64-cp312
 ./follow-stack setup
 ```
 
@@ -390,7 +408,7 @@ After login, press Enter to check readiness, or type later to pause:
 每次重新 SSH 登录，通常不在版本目录中。按第 2 步连接后先运行：
 
 ```bash
-cd ~/follow-stack-0.1.12-ubuntu24.04-arm64-cp312
+cd ~/follow-stack-0.2.0-ubuntu24.04-arm64-cp312
 ```
 
 | 目的 | 命令／操作 |

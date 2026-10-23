@@ -44,7 +44,7 @@
 
 | 资料 | 用途 |
 | --- | --- |
-| `follow-executor-0.1.12-ubuntu24.04-arm64-cp312.tar.gz` | 安装压缩包，请保留原文件名 |
+| `follow-executor-0.2.0-ubuntu24.04-arm64-cp312.tar.gz` | 安装压缩包，请保留原文件名 |
 | 配套的 `.tar.gz.sha256` 文件 | 一个小文件，让 Ubuntu 检查下载是否完整、是否发生变化 |
 | 你的个人 relay token 和预期的 leader 公钥指纹 | 私人接入码，以及核对信号提供方身份的标识 |
 | Auto Quant Discord 邀请链接 | 仅在需要交易私信时使用 |
@@ -52,6 +52,8 @@
 将**两个下载文件**都放到自己电脑的 **Downloads（下载）**文件夹。保持 `.tar.gz` 为压缩状态，之后会在 Ubuntu 上解压。请通过 Auto Quant 可信的下载渠道获取这两个文件。
 
 另外准备好 **IBKR 模拟交易登录凭据**、对应的**账户 ID**，以及手机上的 **IBKR Mobile**。确认账户支持所需期货品种，并启用了 **IB Key / 手机推送批准**。登录时需要用户名和密码；配置 Auto Quant 时另需账户 ID，例如 `DU1234567`。请使用专门用于跟随的账户，无关的 MNQ/NQ 订单或持仓可能导致 Auto Quant 暂停并要求检查。
+
+先完成 [IBKR 附加账户与第二用户名准备](IBKR_ACCOUNT_SETUP.zh-CN.md)，Gateway 和手机交易使用不同用户名，并核验模拟访问权限。
 
 **可以继续的标志：** 两个文件、Auto Quant 接入资料和可正常登录的模拟账户均已准备好。第 5 步会在自己的电脑上安装远程桌面查看器。
 
@@ -63,12 +65,13 @@
 
 打开 [Oracle 云电脑图文指南](OCI_ARM.zh-CN.md)，按说明完成：
 
-1. 注册 Oracle 账户并选择主区域。
+1. 注册 Oracle 账户，主区域建议 San Jose；双重验证先勾选离线验证器选项。
+   创建 VCN 前完成付款方式及 Pay As You Go 升级并确认成功。
 2. 创建网络，只允许自己的电脑连接。
 3. 使用 **Ampere A1** 创建 **Ubuntu 24.04 LTS ARM64**。
 4. 保存 SSH 私钥并连接 Ubuntu。
 
-图文指南包含注册、网络、实例页面、Ubuntu 镜像选择和密钥下载的官方截图。起步配置为 **2 个 OCPU / 8 GB 内存**；创建前请核对 Oracle 费用及可用容量，不保证一定能免费获取。
+图文指南包含注册、网络、实例页面、Ubuntu 镜像选择和密钥下载的官方截图。起步配置为 **2 个 OCPU / 12 GB 内存**；创建前请核对 Oracle 费用及可用容量，不保证一定能免费获取。
 
 如果你已有虚拟机，可直接查看图文指南中的[连接步骤](OCI_ARM.zh-CN.md#oci-connect)和[验证步骤](OCI_ARM.zh-CN.md#oci-check)。此安装包要求 **Ubuntu 24.04**、**ARM64/aarch64** 和 **Python 3.12**，请继续使用 Python 3.12。安装过程需要联网。
 
@@ -100,7 +103,7 @@ cd ~/Downloads
 将 `YOUR_OCI_PUBLIC_IP` 替换成实例的**公网 IPv4 地址**，然后将下面的命令作为**完整一行**粘贴。`scp` 表示“安全复制文件”。保留末尾的冒号和 `Downloads/`。
 
 ```bash
-scp -i ./auto-quant.key follow-executor-0.1.12-ubuntu24.04-arm64-cp312.tar.gz follow-executor-0.1.12-ubuntu24.04-arm64-cp312.tar.gz.sha256 ubuntu@YOUR_OCI_PUBLIC_IP:Downloads/
+scp -i ./auto-quant.key follow-executor-0.2.0-ubuntu24.04-arm64-cp312.tar.gz follow-executor-0.2.0-ubuntu24.04-arm64-cp312.tar.gz.sha256 ubuntu@YOUR_OCI_PUBLIC_IP:Downloads/
 ```
 
 等待两个文件都传送完成。如果首次连接要求确认，请先核对地址是否属于你的实例，再接受。
@@ -109,15 +112,15 @@ scp -i ./auto-quant.key follow-executor-0.1.12-ubuntu24.04-arm64-cp312.tar.gz fo
 
 ```bash
 cd ~/Downloads
-sha256sum --check follow-executor-0.1.12-ubuntu24.04-arm64-cp312.tar.gz.sha256
+sha256sum --check follow-executor-0.2.0-ubuntu24.04-arm64-cp312.tar.gz.sha256
 ```
 
 你应看到压缩包名称后显示 **OK**。这能发现下载不完整或文件被更改的问题；你不需要理解或手动输入那串很长的校验值。如果显示 **FAILED**，请停止，从 Auto Quant 重新下载这两个文件。检查通过后，再解压到长期使用的安装位置：
 
 ```bash
 mkdir -p ~/auto-quant
-tar -xzf follow-executor-0.1.12-ubuntu24.04-arm64-cp312.tar.gz -C ~/auto-quant
-cd ~/auto-quant/follow-executor-0.1.12-ubuntu24.04-arm64-cp312
+tar -xzf follow-executor-0.2.0-ubuntu24.04-arm64-cp312.tar.gz -C ~/auto-quant
+cd ~/auto-quant/follow-executor-0.2.0-ubuntu24.04-arm64-cp312
 ./install.sh --verify-only
 ```
 
@@ -364,7 +367,7 @@ ssh -i ./auto-quant.key ubuntu@YOUR_OCI_PUBLIC_IP
 提示符变为 Ubuntu 后，进入安装文件夹：
 
 ```bash
-cd ~/auto-quant/follow-executor-0.1.12-ubuntu24.04-arm64-cp312
+cd ~/auto-quant/follow-executor-0.2.0-ubuntu24.04-arm64-cp312
 ```
 
 之后在 **Ubuntu 上**使用这些命令：

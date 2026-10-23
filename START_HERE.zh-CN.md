@@ -2,19 +2,20 @@
 
 [English](START_HERE.md) | 简体中文
 
-**从未用过终端？**请按[零基础安装指南](docs/SETUP.zh-CN.md)操作，包含 Windows／Mac
+**先使用 Codex 或 Claude Code。**将解压目录作为工作区打开，并粘贴第 2 步的提示，
+让助手从零开始带你设置。[零基础安装指南](docs/SETUP.zh-CN.md)包含 Windows／Mac
 打开终端、连接 Ubuntu、上传安装包及回答向导的步骤。Gateway 和执行器均使用容器，
-AI 助手可选。[English guide](docs/SETUP.md)。
+[English guide](docs/SETUP.md)。
 
 如果压缩包以 `follow-executor-…` 而非 `follow-stack-…` 开头，请使用
-[原生指南](docs/SETUP_NATIVE.zh-CN.md)。下方可选 AI 流程适用于两种安装包，
+[原生指南](docs/SETUP_NATIVE.zh-CN.md)。下方 AI 流程适用于两种安装包，
 助手必须先识别类型再选择命令。
 
-你可以让具备文件和终端访问能力的 Codex、Claude Code 或其他 AI 助手阅读安装指南，并带你完成设置。你不需要事先读完整份指南。助手会执行它能完成的技术步骤，并解释哪些浏览器、终端或手机操作需要你参与。
+请使用具备文件和终端访问能力的 Codex 或 Claude Code 阅读指南并带你完成设置。你不需要事先读完整份指南。助手会执行它能完成的技术步骤，并解释哪些浏览器、终端或手机操作需要你参与。
 
 ## 1. 准备资料
 
-向 Auto Quant 获取**安装压缩包及配套校验文件**、个人 relay token、预期的信号提供方公钥指纹，以及可选的 Auto Quant Discord 邀请。保留原始下载文件，并准备好 IBKR 模拟账户和 IBKR Mobile。
+向 Auto Quant 获取**安装压缩包及配套校验文件**、个人 relay token、预期的信号提供方公钥指纹，以及可选的 Auto Quant Discord 邀请。保留原始下载文件，并准备好 IBKR Mobile。尚无 IBKR 账户或模拟登录时，让助手先从[账户准备](docs/IBKR_ACCOUNT_SETUP.zh-CN.md)开始。
 
 你需要自己拥有 AI 工具的使用权限；Auto Quant 不会安装 AI 工具，也不包含其订阅。请按工具自身的流程登录。工具需要能够读取安装包，并在你的电脑或 Ubuntu 云电脑上运行命令。只能阅读附件的聊天工具可以解释步骤，但不能直接安装到你的云电脑。
 
@@ -30,6 +31,18 @@ AI 助手可选。[English guide](docs/SETUP.md)。
 > `docs/SETUP.zh-CN.md`。请用中文交流，假设我从未用过 shell 或命令行。根据 `RELEASE.json` 识别安装包：
 > 组合包用 `follow-stack setup`，原生包用 `docs/SETUP_NATIVE.zh-CN.md`。先询问我使用什么电脑、是否已有
 > Ubuntu 云电脑，再检查哪些步骤已经完成。请执行你能完成的技术步骤，并在需要时询问缺少的信息。
+> 新 OCI 账户建议选择 Home Region 为 US West (San Jose)，us-sanjose-1。
+> Oracle Mobile 双重验证时，先让我勾选 “Offline mode or use another authenticator app” 再扫码。
+> 创建任何 VCN 前，先指导我进入 Billing & Cost Management → Upgrade and Manage Payment，
+> 添加或核对付款方式，阅读接受费用和条款，并等待 Plan Type 从 Free Tier 变为 Pay As You Go。
+> 新 Ubuntu ARM64 实例使用 2 OCPU、12 GB 内存。按 `docs/IBKR_ACCOUNT_SETUP.zh-CN.md`，
+> 在 Settings 中 Open an Additional Account，并到 User icon → Settings → User & Access Rights → Users → “+” Add，
+> 为我创建第二用户名。Gateway 与手机交易使用不同用户名，向导前核验模拟登录和账户。
+> 选择 Futures，由我如实填写经验年数，确有数年经验才选对应区间。
+> 点击 Market Data API Acknowledgement 和 Market Data Subscriber Status 的齿轮，完成两份表单，
+> 符合资格才在下拉菜单选择 Non-Professional。Level 1 选 CME Real-Time (L1)，
+> 非专业公开价每月 $1.55，由我核对实际循环费用并接受，同时验证模拟行情访问。
+> 已验证的已有资源和账户应复用，再继续安装。
 > 需要我使用浏览器、终端或手机时，每次只给我一个操作。密码和 token 让我直接在自己的终端输入，
 > 不要让我发到聊天中，也不要读取凭据文件。先使用模拟交易。在启动任何交易前，展示检查结果，
 > 并让我确认账户模式、品种和数量。容器向导自动配置 Gateway API；如需人工检查，请先展示随附的 Gateway 截图再让我点击。如果我选择 Discord 通知，请在关联 AQ Bot 时展示 #bot-setup 截图。

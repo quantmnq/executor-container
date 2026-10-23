@@ -2,7 +2,8 @@
 
 [English](AGENT_SETUP.md) | 简体中文
 
-本指南用于帮助客户安装**分发的字节码安装包**。命令以[安装指南](SETUP.zh-CN.md)为准，客户提示词见[从这里开始](../START_HERE.zh-CN.md)。使用客户的语言沟通。无需克隆源码、反编译、安装开发工具或修改代码。本指南不授权操作提供方的中继或通知服务器。
+本指南供 **Codex 或 Claude Code** 帮助客户**从零设置 follow-stack 分发包**，包括账户和 OCI。
+命令以[安装指南](SETUP.zh-CN.md)为准，客户提示词见[从这里开始](../START_HERE.zh-CN.md)。使用客户的语言沟通。无需克隆源码、反编译、安装开发工具或修改代码。本指南不授权操作提供方的中继或通知服务器。
 
 ## 确定起点
 
@@ -15,7 +16,9 @@
 
 如果没有终端或 SSH 访问能力，应明确说明，并每次只给客户一个操作。不得声称执行过自己无法访问的命令或点击过界面。未经客户要求，不代其安装或登录 AI 工具；需要时参考工具官方说明。
 
-修改已有虚拟机前，使用 `systemctl --user is-active follow-executor.service follow-gateway.service` 检查执行器和 Gateway 的状态。首次安装时服务未运行或不存在可能是正常的，应与 SSH 或用户会话失败区分。通过 `systemctl --user show` 查看现有单元的 `WorkingDirectory` 和 `ExecStart`，确定当前安装版本。换了一个版本目录，不代表没有旧配置。
+组合包修改已有虚拟机前，先用已安装版本的 `./follow-stack service-status` 和 `./follow-stack gateway status`；
+缺少原生单元不能证明容器执行器未运行。原生包使用 `systemctl --user is-active follow-executor.service follow-gateway.service` 检查。
+首次安装时服务未运行或不存在可能是正常的，应与 SSH 或用户会话失败区分。通过 `systemctl --user show` 查看现有单元的 `WorkingDirectory` 和 `ExecStart`，确定当前安装版本。换了一个版本目录，不代表没有旧配置。
 
 如果交易正在运行，不要停止、重装、重新配置或启动第二个执行器。先查看状态，并请客户检查 IBKR。只有确认没有持仓及未完成订单、且客户准备好停止后，才按[更新流程](SETUP.zh-CN.md#update)操作。仅凭本地日志数据库或尚未收全的空券商缓存，不能证明账户已空仓。
 
@@ -32,7 +35,7 @@
 | IBKR 用户名/密码、relay token、VNC 或 sudo 密码 | 客户在自己的终端或官方登录界面直接输入。不要在聊天中索取，也不要放进命令参数或环境变量。 |
 | Discord 一次性关联码 | 客户在自己的终端运行关联命令，将显示的码提交给 AQ Bot 的 `/link`；不要保存该码。 |
 
-当 `./scripts/gateway-desktop.sh`、`./follow gateway configure` 或 `./follow configure` 需要私密输入时，让客户在**自己的交互式 SSH 终端中，进入安装目录后**运行命令。不要在客户无法输入的助手专用终端里启动隐藏密码提示。先解释非秘密选项，等客户完成后再用状态或检查命令验证。不要让秘密资料经过模型来驱动交互提示。如果隐藏输入不可用，或出现可能回显输入的警告，应取消并使用真正的交互式终端。
+当 `./follow-stack setup`、`./follow-stack gateway configure`、`./scripts/gateway-desktop.sh`、`./follow gateway configure` 或 `./follow configure` 需要私密输入时，让客户在**自己的交互式 SSH 终端中，进入安装目录后**运行命令。不要在客户无法输入的助手专用终端里启动隐藏密码提示。先解释非秘密选项，等客户完成后再用状态或检查命令验证。不要让秘密资料经过模型来驱动交互提示。如果隐藏输入不可用，或出现可能回显输入的警告，应取消并使用真正的交互式终端。
 
 不得读取、显示、上传或将 `relay.token`、`ibc.ini`、SSH 私钥、VNC 密码文件及其备份内容放入工具输出。不要转储整份配置、主目录、环境变量或日志。程序运行时必然会读取自己的凭据；这里限制的是将凭据暴露给助手或会话记录。拥有虚拟机权限在技术上可能允许读取这些文件；本指南是行为说明，并非隔离机制。使用公开的状态命令和限定长度的诊断输出，共享前遮盖账户或交易详情，备份保持私密。
 
@@ -42,6 +45,43 @@
 `./follow-stack gateway status`。只检查旧的 `follow-executor.service` 无法识别容器执行器。
 完整执行 SETUP 的五步向导、行情就绪和明确启动流程，不套用下方原生检查点表。
 后续容器状态、检查及 Discord 命令使用 `follow-stack`，不要运行原生 `follow configure`。
+
+## 账户和云资源检查点——两种安装包均适用
+
+安装向导前完成。从客户第一个未完成步骤开始，即使尚未注册 Oracle 或 IBKR。
+每个阶段先读对应指南，浏览器／手机每次只给一个操作，并确认完成结果。
+
+| 阶段 | 操作及通过依据 |
+| --- | --- |
+| Oracle 账户和区域 | 按 [OCI 注册](OCI_ARM.zh-CN.md#oci-account)，新 Home Region 推荐 **US West (San Jose)，`us-sanjose-1`**。解释注册后不能更改，已有区域保留。身份验证和条款由客户完成。 |
+| Oracle Mobile 双重验证 | 按[验证器配置](OCI_ARM.zh-CN.md#oci-mfa)，**先勾选 “Offline mode or use another authenticator app” 再扫码**。客户私密处理二维码、密钥、恢复码和验证码。已有验证正常工作时保留。 |
+| VCN 前完成付款 | **打开 VCN 向导前**，指导客户到 **Billing & Cost Management → Upgrade and Manage Payment**，添加／核对付款方式，将 **Free Tier** 升为 **Pay As You Go**。客户自行审阅费用并接受条款。必须确认 **Plan Type 已显示 Pay As You Go**；待处理不算完成。拒绝或无法升级时暂停该阶段。 |
+| 网络和虚拟机 | 付款检查点后按 [VCN](OCI_ARM.zh-CN.md#oci-network)、限制 SSH 及[实例指南](OCI_ARM.zh-CN.md#oci-instance)操作：**Ubuntu 24.04 ARM64、A1 Flex、2 OCPU／12 GB 内存**，客户确认费用。验证 SSH、`aarch64`、Python 3.12 和时钟同步。兼容的已有虚拟机可复用；活动交易时不要调整配置或重建。 |
+| IBKR 附加账户 | 按 [IBKR 准备](IBKR_ACCOUNT_SETUP.zh-CN.md)，必要时先协助首次注册，再到 **User icon → Settings → Trading → Open an Additional Account**。客户完成申请并等候批准，或确认已有专用账户。不代填财务／经验答案，不入金或转账。 |
+| IBKR 第二用户名 | 到 **User icon → Settings → User & Access Rights → Users → “+” Add**，为同一持有人创建 secondary username 并选择 **Yes**。OCI Gateway 与手机交易使用不同用户名。验证安全设置、账户访问、期货及行情权限，并说明额外行情费用。单独核验实际 **paper** 登录。不得在聊天索取凭据，也不得用 Gateway 用户名登录手机交易。 |
+| 期货权限 | 申请中选择 **Futures** 及所需美国市场，客户如实填写经验年数、交易次数和知识，确有数年经验才选对应区间。已有账户可到 **Settings → Trading → Trading Permissions**。等待批准；不得虚构年数或更改资料绕过资格。 |
+| 行情表单及 CME | 到 **Settings → Trading Platform → Market Data Subscriptions**，分别点击 **Market Data API Acknowledgement** 和 **Market Data Subscriber Status** 的**齿轮**并完成两份表单。真实符合资格才下拉选 **Non-Professional**。在 **Current Subscriptions → 齿轮 → US/North America → Level 1** 选 **CME Real-Time (L1)**，非专业公开价 **每月 $1.55**。客户确认实际循环费用及协议；核验两份表单保存、Gateway 用户订阅生效及模拟行情共享／访问，详见 [IBKR 步骤](IBKR_ACCOUNT_SETUP.zh-CN.md)。 |
+
+进度记录仅保存完成／待处理状态，不含账户、卡片或凭据。继续时不要重复开账户或用户。
+入口不可用、Oracle／IBKR 等候批准应记录为具体未完成检查点，不能跳过。
+
+## 组合包安装检查点
+
+账户／云资源准备后，按 [SETUP](SETUP.zh-CN.md) 顺序执行：
+
+1. 用可信校验文件验证原压缩包、上传 Ubuntu，在固定目录解压，通过 **`./follow-stack setup`** 安装。
+2. 交互式向导交给客户自己的 SSH 终端。先解释模拟账户 ID、品种／手数、Gateway 专用模拟登录、
+   relay token 和计划；不通过助手记录代答隐藏输入。
+3. 需要时按 Docker 提示重启，先保存进度，再重连并重跑同一命令；复用已保存步骤和凭据。
+4. 客户批准 Gateway 身份验证。向导自动配置 API；需要人工检查时才展示随附截图。
+   恢复使用私密 SSH 隧道，不公开 4001／4002／5901 端口。
+5. 交易仍停止时，要求 **`./follow-stack check`** 的账户、中继、保证金和行情检查通过。
+   客户用另一个用户名登录手机交易，再检查 Gateway 仍保持连接。行情待市场开放验证时记录待处理。
+6. 需要 Discord 时，按随附截图执行 `./follow-stack discord link`，确认测试私信，再 `./follow-stack discord enable`。
+7. 展示验证后的 paper 模式、品种和数量。客户明确同意后才运行 `./follow-stack start`；否则以已配置、交易停止结束。
+
+日志限定长度，例如 `journalctl --user -u 'follow-executor-container-*.service' -n 60 --no-pager`，并使用公开状态命令。
+区分 Gateway 进程运行、账户／行情就绪及已观察到模拟成交；不要为完成安装而提交测试订单。
 
 ## 仅适用于原生安装包的检查点
 
@@ -90,6 +130,11 @@ Docker 卷也包含凭据，不要读取卷内容或把 Docker inspect 原始输
 ## 继续安装，不重置状态
 
 在 Ubuntu 的 `~/.local/state/auto-quant-onboarding/progress.md` 保存简短进度记录，放在受校验的安装目录及应用状态目录之外。新建其父目录时使用 `0700`，文件使用 `0600`；不要修改无关目录的权限。每完成一个阶段或把操作交给客户时更新。如果尚未连接 Ubuntu，先在聊天中提供不含秘密的进度摘要，连接后再保存。已有记录应先阅读，再更新。
+另记录 Oracle MFA、Pay As You Go、虚拟机、IBKR 附加账户、第二用户名、模拟访问及手机／Gateway 共存验证的完成／待处理状态，不记录身份资料。
+另记录期货权限批准、API 确认、订阅者状态及 CME L1 完成／待处理，不记录个人问卷答案。
+
+组合包继续时使用 `./follow-stack service-status`、`./follow-stack gateway status`，仅在停止时运行
+`./follow-stack check`；下文的 `./follow` 命令适用于原生包。
 
 只记录：版本及安装路径、最后验证的阶段和时间、paper/live 模式、品种及数量、计划时间、Discord 已启用/跳过/待处理、是否已获准及执行交易启动、下一步，以及清理过敏感信息的错误摘要。不记录密码、用户名、账户 ID、token、关联码、私钥内容、原始配置/日志或交易/信号数据。准确记录客户决定；旧记录不构成对另一账户、数量或模式的授权。
 

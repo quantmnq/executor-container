@@ -8,7 +8,7 @@
 
 ## 构建与验证
 
-0.1.12 在 GPL 源码发布版的基础上增加持仓保护机制。使用 Ubuntu 24.04
+0.2.0 增加账户／云资源检查点，以 Codex 或 Claude Code 作为客户从零安装的主要入口，保留交易保护规则。使用 Ubuntu 24.04
 ARM64、CPython 3.12 和 Docker。同步更新 `pyproject.toml`、启动器/测试的默认镜像
 标签和中英文示例中的版本号。旧发布压缩包保持不变。
 
@@ -19,7 +19,7 @@ bash -n follow follow-container follow-stack install.sh deploy/install-bytecode.
 python3.12 scripts/build-executor-container.py
 python3.12 scripts/test-executor-container.py
 python3.12 scripts/test-executor-isolation.py
-python3.12 scripts/collect-third-party-source.py --image follow-executor:0.1.12
+python3.12 scripts/collect-third-party-source.py --image follow-executor:0.2.0
 python3.12 scripts/build-container-kit.py --build dist/executor-container/BUILD.json --third-party dist/third-party/SOURCES.json
 python3.12 scripts/build-source.py --output dist/source --export dist/public-repository
 ```
@@ -51,12 +51,12 @@ LICENSE、NOTICE 和 THIRD_PARTY_LICENSES 保留在最终镜像。不要删除�
 VM 的秘密文件。应包含 `.github/`、`.gitignore` 等公开隐藏文件，但不能复制工作
 VM 的 `.git/` 历史。代码没有假定仓库网址。
 
-创建与 0.1.12 对应的 release/tag，上传审核过的以下文件：
+创建与 0.2.0 对应的 release/tag，上传审核过的以下文件：
 
-- `follow-stack-0.1.12-ubuntu24.04-arm64-cp312.tar.gz`
+- `follow-stack-0.2.0-ubuntu24.04-arm64-cp312.tar.gz`
 - 对应的 `.tar.gz.sha256` 校验文件
-- `follow-executor-0.1.12-source.tar.gz`（安装包内部也包含）
-- `follow-executor-0.1.12-dependencies.tar.gz`
+- `follow-executor-0.2.0-source.tar.gz`（安装包内部也包含）
+- `follow-executor-0.2.0-dependencies.tar.gz`
 - 覆盖这些发布文件的 `SHA256SUMS`
 
 在二进制下载旁边免费提供对应源码下载。不能要求已经收到软件的用户续订信号服务，
@@ -72,7 +72,7 @@ VM 的 `.git/` 历史。代码没有假定仓库网址。
 
 ## 客户下载与 Discord
 
-将源码发布到公开 GitHub 仓库，将上述五个附件放在 **v0.1.12 Release**。
+将源码发布到公开 GitHub 仓库，将上述五个附件放在 **v0.2.0 Release**。
 在 GitHub 打开 **Releases → Draft a new release**，选择匹配的源码提交／标签，
 上传附件并填写版本说明。首次模拟账户接入可标记为 pre-release（预发布）。
 发布后先核实实际下载文件，再向客户发送链接。
@@ -86,7 +86,7 @@ VM 的 `.git/` 历史。代码没有假定仓库网址。
 对应的应用源码和依赖源码。先检查频道附件大小限制；依赖源码包远大于安装包。
 优先提供一个 GitHub Release 链接，避免同一版本的文件散落在多条消息中。
 
-`START_HERE` 和 `AGENT_SETUP` 用于可选 AI 辅助安装；`CONTAINER_SETUP` 用于维护
+`START_HERE` 和 `AGENT_SETUP` 用于主要的 Codex／Claude Code 安装流程；`CONTAINER_SETUP` 用于维护
 与恢复；`EXECUTOR` 解释交易及安全行为；均有中文版本。`DISCORD` 是个人交易通知
 设置文档，不是安装指南。此组合容器包的客户无需从 `SETUP_NATIVE` 或 `RELEASING` 开始。
 
@@ -94,7 +94,7 @@ VM 的 `.git/` 历史。代码没有假定仓库网址。
 
 使用中英文零基础安装指南。先让两到三位模拟账户客户尝试，包括从未使用终端的人。
 每位客户都需要通过自己的就绪检查；安装不会自动开始交易。客户明确启动前，确认
-模式、品种和数量。AI 助手不是必需的。已有安装需要在停止执行器且账户空仓时迁移，
+模式、品种和数量。客户从 Codex 或 Claude Code 的 START_HERE 提示开始。已有安装需要在停止执行器且账户空仓时迁移，
 保留交易日志，并重新生成服务以获得凭据隔离挂载。只加载新镜像还不够。
 
 发布源码不会部署到正在运行的试点，也不会授权实盘交易。原生 Gateway 路径保留给

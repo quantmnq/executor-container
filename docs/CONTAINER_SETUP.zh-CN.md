@@ -3,18 +3,23 @@
 [English](CONTAINER_SETUP.md) | 简体中文
 
 在 Ubuntu 24.04 ARM64 上使用 `follow-stack-…-ubuntu24.04-arm64-cp312.tar.gz`
-组合客户安装包。无需 AI 助手。向导管理 Gateway 和执行器容器，控制程序只使用 Ubuntu
+组合客户安装包。请先按[从这里开始](../START_HERE.zh-CN.md)使用 Codex 或 Claude Code。
+向导管理 Gateway 和执行器容器，控制程序只使用 Ubuntu
 自带的 Python 3.12，无需在主机安装 venv、pip 依赖、Java 或完整桌面。
 
 **从未用过终端？先看[零基础指南](SETUP.zh-CN.md)。**本页是技术安装、维护及恢复参考。
 
-0.1.12 已准备用于小范围模拟账户接入。
+0.2.0 已准备用于小范围模拟账户接入。
 验证范围见[版本说明](RELEASE_NOTES.zh-CN.md)。既有安装保留原后端，迁移需明确安排。此向导支持全新安装和继续自己的已有安装，
 不会覆盖其他安装的 Gateway 服务或自动更换已固定的执行器镜像。
 兼容版本可在停止且空仓时使用下方明确的升级／回退命令。原生安装迁移仍需单独审查；
 不要删除配置或交易历史来绕过限制。
 
-## 0.1.12 凭据隔离
+创建任何 VCN 前完成 [OCI 付款及套餐检查点](OCI_ARM.zh-CN.md#oci-payment)，
+向导前完成 [IBKR 附加账户／第二用户名准备](IBKR_ACCOUNT_SETUP.zh-CN.md)。
+新实例使用 **2 OCPU／12 GB 内存**，Gateway 与手机交易使用不同用户名，并单独核验模拟登录。
+
+## 0.2.0 凭据隔离
 
 执行器容器无法读取管理的 Gateway 凭据目录或维护备份。空的只读挂载遮蔽这两个
 子目录，凭据、Gateway 数据卷及交易日志仍保留原主机路径，主机控制程序与 Gateway
@@ -167,9 +172,9 @@ Gateway 版本变化需要另行审查迁移。
 在源码目录中，使用独立输出目录：
 
 ```bash
-python3.12 scripts/build-executor-container.py --tag follow-executor:0.1.12 --output dist/container-wizard/image
-python3.12 scripts/test-executor-container.py --image follow-executor:0.1.12
-python3.12 scripts/collect-third-party-source.py --image follow-executor:0.1.12
+python3.12 scripts/build-executor-container.py --tag follow-executor:0.2.0 --output dist/container-wizard/image
+python3.12 scripts/test-executor-container.py --image follow-executor:0.2.0
+python3.12 scripts/collect-third-party-source.py --image follow-executor:0.2.0
 python3.12 scripts/build-container-kit.py --build dist/container-wizard/image/BUILD.json --third-party dist/third-party/SOURCES.json --output dist/container-wizard/kit
 ```
 

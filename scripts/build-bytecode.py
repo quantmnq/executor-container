@@ -26,6 +26,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 TAG = "cp312-none-any"
 CUSTOMER_DOCS = (
+    "IBKR_ACCOUNT_SETUP",
     "AGENT_SETUP", "SETUP", "SETUP_NATIVE", "IBC", "GATEWAY_DOCKER", "EXECUTOR_DOCKER", "CONTAINER_SETUP", "DISCORD", "EXECUTOR", "OCI_ARM", "OPERATIONS", "SIGNAL_V1", "RELEASE_NOTES", "SOURCE", "RELEASING",
 )
 CUSTOMER_IMAGES = (
@@ -149,11 +150,11 @@ def build(output: Path, *, executor_image: dict | None = None, image_archive: Pa
     files["README.md"] = (
         f"# Auto Quant Follow Executor {version}\n\n"
         "Customer installation kit for Ubuntu 24.04 ARM64 and CPython 3.12.\n\n"
-        "- [Start here: choose your setup guide](START_HERE.md)\n"
-        "- [从这里开始：选择安装指南](START_HERE.zh-CN.md)\n"
+        "- [Start here with Codex or Claude Code](START_HERE.md)\n"
+        "- [从这里开始：用 Codex 或 Claude Code 安装](START_HERE.zh-CN.md)\n"
         "- [Complete setup steps in English](docs/SETUP_NATIVE.md)\n"
         "- [完整中文安装指南](docs/SETUP_NATIVE.zh-CN.md)\n\n"
-        "Open this folder in your AI tool and paste the START_HERE prompt, or follow the full guide.\n"
+        "Open this folder in Codex or Claude Code and paste the START_HERE prompt.\n"
         "The AI tool needs access to the files and VM; personal login/phone steps still need you.\n"
         "Install on Ubuntu with `./install.sh` as your Ubuntu login user.\n"
         "Installation does not start trading. Keep this directory at its installed path.\n"
@@ -178,12 +179,24 @@ def build(output: Path, *, executor_image: dict | None = None, image_archive: Pa
         files["README.md"] = (
             f"# Auto Quant container setup {version}\n\n"
             "Combined Gateway and executor kit for Ubuntu 24.04 ARM64.\n\n"
-            "New to terminals? Start with the full beginner guide, including Windows/Mac\n"
-            "instructions, file transfer, private prompts and reboot recovery.\n\n"
+            "Open this extracted folder in Codex or Claude Code and paste the START_HERE\n"
+            "prompt. The assistant guides account preparation, OCI and installation from scratch.\n\n"
+            "- [Start here with Codex or Claude Code](START_HERE.md)\n"
+            "- [从这里开始：用 Codex 或 Claude Code 安装](START_HERE.zh-CN.md)\n"
             "- [Beginner setup in English](docs/SETUP.md)\n"
             "- [零基础中文安装指南](docs/SETUP.zh-CN.md)\n\n"
+            "New OCI setup: US West (San Jose), select the offline-authenticator checkbox\n"
+            "before MFA enrollment, add payment and upgrade to Pay As You Go before VCN,\n"
+            "then create Ubuntu 24.04 ARM64 with 2 OCPUs / 12 GB RAM.\n"
+            "Prepare the IBKR additional account and secondary username first; keep separate\n"
+            "usernames for Gateway and phone trading, and verify the actual paper login.\n"
+            "See [IBKR preparation](docs/IBKR_ACCOUNT_SETUP.md) / "
+            "[IBKR 账户准备](docs/IBKR_ACCOUNT_SETUP.zh-CN.md).\n\n"
+            "Request Futures with accurate experience; complete both gear-icon Market Data API\n"
+            "Acknowledgement and Subscriber Status forms. Eligible Non-Professional users select\n"
+            "CME Real-Time (L1), listed at $1.55/month, and confirm IBKR's current recurring fee.\n\n"
             "Verify the archive checksum, extract it into a permanent\n"
-            "directory, and run `./follow-stack setup` in your own terminal. No AI assistant is required.\n"
+            "directory on Ubuntu, and run `./follow-stack setup` in your own terminal.\n"
             "The wizard resumes saved steps and never starts trading. After readiness checks, review\n"
             "your mode and size and explicitly run `./follow-stack start`.\n\n"
             "- [Container maintenance and recovery reference](docs/CONTAINER_SETUP.md)\n"

@@ -3,14 +3,18 @@
 English | [简体中文](CONTAINER_SETUP.zh-CN.md)
 
 Use the combined `follow-stack-…-ubuntu24.04-arm64-cp312.tar.gz` customer kit on
-Ubuntu 24.04 ARM64. An AI assistant is optional. The wizard manages both Gateway
+Ubuntu 24.04 ARM64. Start with [Codex or Claude Code](../START_HERE.md).
+Complete [OCI payment/plan preparation](OCI_ARM.md#oci-payment) before any VCN
+and [IBKR account/secondary-login preparation](IBKR_ACCOUNT_SETUP.md) before
+the wizard. New VM allocation: **2 OCPUs / 12 GB RAM**.
+The wizard manages both Gateway
 and executor containers; Ubuntu's built-in Python 3.12 runs the small controller.
 No host venv, pip packages, Java installation or full desktop is needed.
 
 **New to terminals? Start with the [beginner guide](SETUP.md).** This page is the
 technical setup, maintenance and recovery reference.
 
-Version 0.1.12 is prepared for a limited paper-account rollout. See the
+Version 0.2.0 is prepared for a limited paper-account rollout. See the
 [release notes](RELEASE_NOTES.md) for validation scope. Existing installations
 retain their current backend until deliberately migrated.
 This wizard supports a new installation, resuming its own saved setup, and an
@@ -19,7 +23,7 @@ refuses another Gateway installation or a different installed executor image;
 use the maintenance commands below for release changes. Migration from a native
 installation still needs a separately reviewed procedure.
 
-## Credential isolation in 0.1.12
+## Credential isolation in 0.2.0
 
 The executor containers cannot read the managed Gateway credential directory or
 maintenance backups. Empty read-only mounts hide both subtrees; credentials,
@@ -78,7 +82,8 @@ The five steps are:
 3. **Account and relay access.** Enter the account ID and personal relay token in
    your terminal. Defaults are paper, MNQ and one contract. Live mode requires its
    typed confirmation. Saved configuration is reused on subsequent runs.
-4. **Gateway login.** Enter IBKR credentials privately, choose the restart schedule,
+4. **Gateway login.** Enter the verified, dedicated paper login privately; keep
+   phone trading on another username to avoid disconnecting OCI Gateway. Choose the restart schedule,
    and approve IBKR Mobile if requested. New setups enable a recovery screen
    by default, with a separate eight-character password. The wizard prints SSH/VNC
    connection instructions. Complete IBKR notices yourself. Type `later` to pause;
@@ -205,9 +210,9 @@ do not bypass the pending-maintenance marker or launch the older controller to t
 From the source checkout, build into a separate output directory:
 
 ```bash
-python3.12 scripts/build-executor-container.py --tag follow-executor:0.1.12 --output dist/container-wizard/image
-python3.12 scripts/test-executor-container.py --image follow-executor:0.1.12
-python3.12 scripts/collect-third-party-source.py --image follow-executor:0.1.12
+python3.12 scripts/build-executor-container.py --tag follow-executor:0.2.0 --output dist/container-wizard/image
+python3.12 scripts/test-executor-container.py --image follow-executor:0.2.0
+python3.12 scripts/collect-third-party-source.py --image follow-executor:0.2.0
 python3.12 scripts/build-container-kit.py --build dist/container-wizard/image/BUILD.json --third-party dist/third-party/SOURCES.json --output dist/container-wizard/kit
 ```
 

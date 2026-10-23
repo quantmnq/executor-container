@@ -56,7 +56,7 @@ Ask Auto Quant for these four items and keep them somewhere private:
 
 | Item | What it is for |
 | --- | --- |
-| `follow-executor-0.1.12-ubuntu24.04-arm64-cp312.tar.gz` | The installation download; keep the filename as supplied |
+| `follow-executor-0.2.0-ubuntu24.04-arm64-cp312.tar.gz` | The installation download; keep the filename as supplied |
 | The matching `.tar.gz.sha256` file | A small file that lets Ubuntu check the download is complete and unchanged |
 | Your personal relay token and expected leader public-key fingerprint | Your private access code and the identifier used to check the signal provider |
 | An Auto Quant Discord invitation | Needed only if you want private transaction messages |
@@ -72,6 +72,12 @@ and the separate account ID (for example `DU1234567`) when configuring Auto Quan
 Use an account dedicated to following; unrelated MNQ/NQ orders or positions can
 cause Auto Quant to stop and ask for review.
 
+First complete [IBKR additional-account and secondary-login preparation](IBKR_ACCOUNT_SETUP.md).
+Use distinct usernames for Gateway and phone trading, and verify paper access.
+The [OCI guide](OCI_ARM.md) recommends San Jose for new accounts, the offline
+authenticator checkbox before scanning, and a payment method plus confirmed
+Pay As You Go plan **before VCN creation**.
+
 **Ready to continue:** you have the two files, your Auto Quant access details,
 and a paper account you can log in to. You will install a remote-desktop viewer
 on your own computer in step 5.
@@ -84,14 +90,15 @@ on your own computer in step 5.
 
 Open the [illustrated Oracle setup walkthrough](OCI_ARM.md). It shows how to:
 
-1. Create your Oracle account and choose a home region.
+1. Create your Oracle account, select the recommended San Jose Home Region,
+   complete MFA, and verify Pay As You Go with a payment method before VCN creation.
 2. Create the network and allow only your computer to connect.
 3. Create **Ubuntu 24.04 LTS ARM64** on **Ampere A1**.
 4. Save the private SSH key and connect to Ubuntu.
 
 That walkthrough includes official screenshots of signup, networking, the
 instance page, Ubuntu selection and key download. A starting allocation is
-**2 OCPUs / 8 GB memory**; review Oracle's charges and available capacity before
+**2 OCPUs / 12 GB memory**; review Oracle's charges and available capacity before
 creating the instance. Free availability is not guaranteed.
 
 If your VM already exists, use the walkthrough's [connection](OCI_ARM.md#oci-connect)
@@ -134,7 +141,7 @@ paste the following as **one line**. `scp` means “copy files securely.” Keep
 colon and `Downloads/` at the end.
 
 ```bash
-scp -i ./auto-quant.key follow-executor-0.1.12-ubuntu24.04-arm64-cp312.tar.gz follow-executor-0.1.12-ubuntu24.04-arm64-cp312.tar.gz.sha256 ubuntu@YOUR_OCI_PUBLIC_IP:Downloads/
+scp -i ./auto-quant.key follow-executor-0.2.0-ubuntu24.04-arm64-cp312.tar.gz follow-executor-0.2.0-ubuntu24.04-arm64-cp312.tar.gz.sha256 ubuntu@YOUR_OCI_PUBLIC_IP:Downloads/
 ```
 
 Wait for both transfers to finish. If prompted on this first connection, check
@@ -144,7 +151,7 @@ the address against your instance before accepting it.
 
 ```bash
 cd ~/Downloads
-sha256sum --check follow-executor-0.1.12-ubuntu24.04-arm64-cp312.tar.gz.sha256
+sha256sum --check follow-executor-0.2.0-ubuntu24.04-arm64-cp312.tar.gz.sha256
 ```
 
 You should see the archive's name followed by **OK**. This check detects an
@@ -154,8 +161,8 @@ Auto Quant. Then unpack the download into its permanent folder:
 
 ```bash
 mkdir -p ~/auto-quant
-tar -xzf follow-executor-0.1.12-ubuntu24.04-arm64-cp312.tar.gz -C ~/auto-quant
-cd ~/auto-quant/follow-executor-0.1.12-ubuntu24.04-arm64-cp312
+tar -xzf follow-executor-0.2.0-ubuntu24.04-arm64-cp312.tar.gz -C ~/auto-quant
+cd ~/auto-quant/follow-executor-0.2.0-ubuntu24.04-arm64-cp312
 ./install.sh --verify-only
 ```
 
@@ -493,7 +500,7 @@ ssh -i ./auto-quant.key ubuntu@YOUR_OCI_PUBLIC_IP
 After the prompt changes to Ubuntu, return to the installation folder:
 
 ```bash
-cd ~/auto-quant/follow-executor-0.1.12-ubuntu24.04-arm64-cp312
+cd ~/auto-quant/follow-executor-0.2.0-ubuntu24.04-arm64-cp312
 ```
 
 Then use the commands below **on Ubuntu**:

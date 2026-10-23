@@ -1,12 +1,31 @@
-# Auto Quant 0.1.12 — 持仓保护机制
+# Auto Quant 0.2.0 — Codex 与 Claude Code 从零安装
 
 [English](RELEASE_NOTES.md) | 简体中文
 
-准备日期：2026 年 10 月 19 日（美国太平洋时间）。本候选包增加持仓保护机制，
-保留 GPL 源码交付及 Gateway 凭据隔离，并将中英文零基础指南更新至本版本。
-准备安装包不等于已对外发布，也不会自动更新已有安装。
+准备日期：2026 年 10 月 22 日（美国太平洋时间）。本版将 Codex 或 Claude Code
+作为客户从账户准备到模拟安装验证的主要入口，保留已有交易引擎、固定依赖及保护规则。
 
-## 0.1.12 新增内容
+## 0.2.0 新增内容
+
+- 中英文 START_HERE 提示、客户 AGENTS.md／CLAUDE.md 及包内 README，从零指导，
+  按账户／云资源检查点记录进度并继续。
+- OCI Home Region 推荐 **US West (San Jose)，`us-sanjose-1`**。
+- Oracle Mobile 验证器先勾选 **Offline mode or use another authenticator app**，再扫码配置。
+- 创建任何 VCN 前，先到 **Billing & Cost Management → Upgrade and Manage Payment**，
+  添加／核对付款方式，由客户接受升级，等待 **Plan Type: Pay As You Go**，不再是 Free Tier。
+- 新建 A1 ARM64 实例使用 **2 OCPU／12 GB 内存**，从 8 GB 提高。
+- 新增 [IBKR 账户指南](IBKR_ACCOUNT_SETUP.zh-CN.md)：先 **Open an Additional Account**，
+  再到 **User & Access Rights → Users → “+” Add** 创建第二用户名。
+  Gateway 与手机交易使用不同用户名，另行核验模拟登录、账户权限及行情。
+- Gateway 私密向导提示使用专用登录；审批、费用／协议接受及凭据均由客户私密处理。
+- IBKR 选择 **Futures** 并如实填写经验，点击齿轮完成 **Market Data API Acknowledgement**
+  和 **Market Data Subscriber Status**；符合 **Non-Professional** 资格的客户选
+  **CME Real-Time (L1)**，公开价 **每月 $1.55**，自行核对当前循环费用及 Gateway／模拟行情访问。
+
+已有可用资源及账户复用，构建或发布下载不会修改正在运行的客户安装。
+新的浏览器／账户流程及手机／Gateway 共存，仍须在每位客户账户上实际确认，自动化检查不能代替。
+
+## 保留的 0.1.12 功能
 
 - 观察到入场成交（包括部分成交）后，执行器等待最多 **30 秒**，确认券商已接受
   与当前持仓合约、方向及数量相匹配的止损单。保护仍缺失时，在订单／持仓对账后
@@ -49,7 +68,7 @@
 ## 包含内容
 
 - 适用于 Ubuntu 24.04 ARM64、Python 3.12 的 Gateway／执行器组合向导。
-  AI 助手可选，无需在主机安装 Java、venv 或完整桌面。
+  由 Codex 或 Claude Code 指导，无需在主机安装 Java、venv 或完整桌面。
 - 安装包内含固定的执行器镜像；上游 Gateway 镜像按摘要固定，版本仍为 10.51.1c。
 - 终端私密输入、可继续的安装步骤、签名中继／账户／行情就绪检查及显式交易启动确认。
 - 手机请求五分钟未批准后，等待 60 秒自动重新登录一次；再次超时后停止并提示人工处理。

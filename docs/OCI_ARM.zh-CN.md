@@ -6,9 +6,11 @@
 
 **以下操作从你自己的电脑开始。** 先使用浏览器，之后使用“终端”——一个可以粘贴命令的窗口。本指南中的操作不会启动交易。
 
-下方截图来自 Oracle 和 Ubuntu 的开发公司 Canonical。图片从其官方网站加载，需要联网；点击图片可以放大。这些是官方教程的示例图，不是你的账户截图，名称、日期和界面布局可能不同。请以本指南文字中要求的设置为准。操作说明核对日期：**2026-10-11**。
+下方截图来自 Oracle 和 Ubuntu 的开发公司 Canonical。图片从其官方网站加载，需要联网；点击图片可以放大。这些是官方教程的示例图，不是你的账户截图，名称、日期和界面布局可能不同。请以本指南文字中要求的设置为准。操作说明核对日期：**2026-10-22**。
 
 - [1. 注册 Oracle 账户](#oci-account)
+- [1a. 设置 Oracle 双重验证](#oci-mfa)
+- [1b. 创建 VCN 前添加付款方式并升级套餐](#oci-payment)
 - [2. 创建网络](#oci-network)
 - [3. 允许自己的电脑连接](#oci-firewall)
 - [4. 创建 Ubuntu 实例并保存密钥](#oci-instance)
@@ -19,7 +21,7 @@
 <a id="oci-account"></a>
 ## 1. 注册 Oracle 账户
 
-**操作位置：你自己电脑的浏览器。** 如果已有 OCI 账户，请在 [Oracle Cloud](https://cloud.oracle.com/) 登录，然后跳到第 2 步。
+**操作位置：你自己电脑的浏览器。** 如果已有 OCI 账户，请在 [Oracle Cloud](https://cloud.oracle.com/) 登录，核对[双重验证](#oci-mfa)，并在第 2 步前完成[付款及套餐检查点](#oci-payment)。
 
 准备好电子邮箱、手机和付款卡。Oracle 可能要求这些信息来验证身份。请阅读页面显示的费用和条款；Oracle 账户与 Auto Quant 订阅是两回事。免费试用额度并不代表你选择的所有资源都一直免费。详见 [Oracle 免费套餐说明](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier.htm)。
 
@@ -32,7 +34,7 @@
 *截图来源：Oracle [账户注册教程](https://docs.oracle.com/en/learn/get-started-with-oci-and-oci-console/)。请填写你自己的信息。*
 
 4. 设置密码。记下 **Cloud Account Name（云账户名称）**，之后登录 Oracle 时会用到。
-5. 选择 **Home Region（主区域）**，也就是这次部署所在的地理区域。请仔细选择：Oracle 说明，注册后不能更改主区域。Always Free 云主机必须建在主区域，是否有空余容量仍以实际情况为准。
+5. **Home Region（主区域）**建议选择 **US West (San Jose)（美国西部：圣何塞）**，区域标识 **`us-sanjose-1`**。这是新 Auto Quant 部署的推荐区域，容量以实际为准。请仔细选择：Oracle 说明，注册后不能更改主区域。Always Free 云主机必须建在主区域。[Oracle 区域列表](https://docs.oracle.com/en-us/iaas/Content/General/Concepts/regions.htm)。
 6. 按 Oracle 的提示完成地址、手机和付款验证，阅读协议后提交注册。
 7. 等待账户开通邮件。打开 [Oracle Cloud](https://cloud.oracle.com/)，输入云账户名称，完成登录及 Oracle 要求的安全验证。[Oracle 注册说明](https://docs.oracle.com/en-us/iaas/Content/GSG/Tasks/signingup_topic-Sign_Up_for_Free_Oracle_Cloud_Promotion.htm)
 
@@ -41,11 +43,47 @@
 *截图来源：Oracle [注册教程](https://docs.oracle.com/en/learn/get-started-with-oci-and-oci-console/)。图中的荷兰仅为示例，不是要求你选择的区域。*
 
 **完成标志：** 你能看到 Oracle Cloud Console（云控制台），即管理云电脑的网站。保持页面顶部选中你刚才选择的主区域。
+已有账户的主区域不能更改；保留原区域并检查容量，不要只为匹配推荐区域重新注册账户。
+
+<a id="oci-mfa"></a>
+### 1a. 设置 Oracle Mobile 双重验证
+
+**操作位置：你自己的浏览器和手机。** Oracle 要求配置 Oracle Mobile Authenticator／手机验证时，
+**先勾选 “Offline mode or use another authenticator app”**（离线模式或使用其他验证器应用；
+部分页面显示 “Offline Mode or Use Another Authenticator App”），**再扫描二维码**。
+
+使用验证器扫描页面显示的二维码；无法扫描时可选择 **Enter key manually（手动输入密钥）**。
+将验证器当前的一次性验证码填入 Oracle 并完成验证。二维码、配置密钥、恢复码及验证码均需私密保存，
+不要发给 Codex、Claude Code、Auto Quant 或聊天。离线模式仍然使用双重验证。
+[Oracle 验证器配置说明](https://docs.oracle.com/en-us/iaas/Content/Identity/mobileauthapp/add-account-oma-app-entering-key-manually.htm)。
+
+**完成标志：** Oracle 确认配置成功，且你能完成登录。已有双重验证正常工作时保留原设置，不要为重复本流程而重置。
+
+<a id="oci-payment"></a>
+### 1b. 创建 VCN 前添加付款方式，并改为 Pay As You Go
+
+**操作位置：浏览器中的 Oracle 云控制台。** 必须在打开 VCN 向导前完成；本客户流程使用 **Pay As You Go（按量付费）**套餐。
+
+1. 打开 **☰ → Billing & Cost Management（计费与成本管理）→ Upgrade and Manage Payment（升级和管理付款）**；部分界面位于 **Billing** 下。
+2. **添加付款方式**。若注册时的卡已显示，核对它；需要其他卡时选择 **Change Payment Method**。
+   卡资料直接在 Oracle 填写，不要发到助手聊天中。
+3. 自行阅读 **Pay As You Go** 条款和费用，接受后完成 **Upgrade your account → Confirm account upgrade**。
+4. 等待 **Subscription Information → Plan Type** 从 **Free Tier** 变为 **Pay As You Go**。
+   仅添加银行卡或显示“升级处理中”不算完成。Oracle 说明处理可能需要一两天。
+
+按量付费会对可计费资源用量收费，创建资源前仍需查看费用估算；升级不保证有 A1 容量或免费运行。
+已经是 Pay As You Go 时核对后继续，不重复升级。若升级待处理、入口不可用或客户不同意，暂停在这里，
+必要时联系 Oracle；不要将其当作已完成而继续创建 VCN。
+[Oracle 付款及升级说明](https://docs.oracle.com/en-us/iaas/Content/Billing/Tasks/changingpaymentmethod.htm)。
+
+**完成标志：** 已有付款方式，且 Plan Type 显示 **Pay As You Go**。
+Codex／Claude Code 应请客户确认这一结果后再继续，无需提供卡资料或账单截图。
 
 <a id="oci-network"></a>
 ## 2. 为 Auto Quant 创建网络
 
 **操作位置：浏览器中的 Oracle 云控制台。** **VCN** 是云电脑使用的网络；**compartment（区间）**可以理解为存放 Oracle 资源的文件夹。对于新注册的个人账户，本指南统一使用账户的 **root（根区间）**。
+先确认已完成[付款方式及 Pay As You Go 检查点](#oci-payment)。
 
 1. 打开左上角菜单 **☰ → Networking（网络）→ Virtual cloud networks（虚拟云网络）**。
 2. 点击 **Start VCN Wizard（启动 VCN 向导）**。某些界面将它放在 **Actions（操作）**里。
@@ -115,7 +153,7 @@
 | Image | **Canonical Ubuntu 24.04 LTS**，**ARM64 / aarch64** |
 | Shape | **Ampere → VM.Standard.A1.Flex** |
 | OCPUs | **2** |
-| Memory | **8 GB** |
+| Memory | **12 GB** |
 
 在 **Image and shape** 中点击 **Change image → Ubuntu**，选择 24.04 的 ARM64/aarch64 版本。如果同时提供完整版本和 Minimal（精简版），优先选择完整版本。通过 **Change shape** 选择 Ampere A1，然后重新检查镜像和机型：某些镜像选项会改变可用机型。即使示例截图显示其他版本，这个安装包也必须使用 Ubuntu 24.04 和 ARM64。[Canonical 的 Ubuntu 镜像选择说明](https://ubuntu.com/docs/oracle/oracle-how-to/find-ubuntu-images/)
 
@@ -123,7 +161,7 @@
 
 *截图来源：Canonical [镜像指南](https://ubuntu.com/docs/oracle/oracle-how-to/find-ubuntu-images/)。无论示例选中了哪个版本，Auto Quant 都要选择 **24.04 ARM64/aarch64**。*
 
-2 个 OCPU 和 8 GB 内存是运行 Gateway 及桌面的起步配置，并非经过验证的最低要求，也不代表一定免费。请核对你的可用额度、已有资源和费用估算。如果 A1 容量不足，可尝试当前区域提供的另一个可用域，或稍后再试。AMD/Intel 实例不能代替这个 ARM64 安装包所需的机型。
+2 个 OCPU 和 12 GB 内存是运行 Gateway 及桌面的起步配置，并非经过验证的最低要求，也不代表一定免费。请核对你的可用额度、已有资源和费用估算。如果 A1 容量不足，可尝试当前区域提供的另一个可用域，或稍后再试。AMD/Intel 实例不能代替这个 ARM64 安装包所需的机型。
 
 ### 网络和 SSH 密钥
 
@@ -145,7 +183,7 @@
 
 ### 磁盘与最终确认
 
-保留标准启动磁盘大小、性能和其他设置，本流程不需要额外磁盘。查看费用估算。在点击 **Create** 前，确认是 **Ubuntu 24.04**、**A1 ARM64**、**2 个 OCPU / 8 GB 内存**、**公共子网和公网 IPv4**，并且私钥已经保存。
+保留标准启动磁盘大小、性能和其他设置，本流程不需要额外磁盘。查看费用估算。在点击 **Create** 前，确认是 **Ubuntu 24.04**、**A1 ARM64**、**2 个 OCPU / 12 GB 内存**、**公共子网和公网 IPv4**，并且私钥已经保存。
 
 点击 **Create**，等待实例状态变成 **Running（运行中）**。在实例详情中复制 **Public IPv4 address（公网 IPv4 地址）**；它有时位于 **Networking** 或主网络接口下。不要复制私网地址，也不要复制 OCID——那是一串很长的资源标识符。[Oracle 首台实例教程](https://docs.oracle.com/en-us/iaas/Content/Compute/tutorials/first-linux-instance/overview.htm)
 

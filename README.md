@@ -11,11 +11,17 @@ Get your token and confirm the public-key fingerprint with your provider.
 
 ## Set up once
 
-New customers use the combined **Gateway + executor container kit**. Start with
-[the beginner English guide](docs/SETUP.md) or [零基础中文指南](docs/SETUP.zh-CN.md).
-They cover first-time terminal use, laptop versus Ubuntu commands, file transfer,
+New customers use **Codex or Claude Code** with the combined **Gateway + executor
+container kit**. Start with [START_HERE](START_HERE.md) or
+[从这里开始](START_HERE.zh-CN.md), open the extracted package as the assistant's
+workspace, and paste the supplied setup prompt. The assistant guides you from
+Oracle signup and IBKR account preparation through installation and verification.
+[The beginner English guide](docs/SETUP.md) and [零基础中文指南](docs/SETUP.zh-CN.md)
+cover first-time terminal use, laptop versus Ubuntu commands, file transfer,
 private wizard prompts, reboot/resume, readiness and explicit paper-trading start.
-An AI assistant is optional; [START_HERE](START_HERE.md) includes a guided prompt.
+The recommended new VM uses US West (San Jose), Pay As You Go before VCN creation,
+and 2 OCPUs / 12 GB RAM. [IBKR preparation](docs/IBKR_ACCOUNT_SETUP.md) covers an
+additional account and a secondary Gateway username to keep phone trading separate.
 
 The kit targets Ubuntu 24.04 ARM64 / Python 3.12. Docker Engine comes from Docker's
 official Ubuntu repository; Gateway comes from its pinned upstream registry image;
@@ -137,7 +143,7 @@ strategy profitable. [Execution behavior and recovery](docs/EXECUTOR.md).
 - `~/.local/state/follow-executor/executor.sqlite3`: durable journal; keep it.
 - `~/.config/systemd/user/follow-executor.service`: local service definition.
 
-In container release 0.1.12, the executor cannot access the managed Gateway
+In container release 0.2.0, the executor cannot access the managed Gateway
 credential directory or maintenance backups through its filesystem mounts.
 These paths are obscured by empty read-only mounts in executor commands and
 services; the host controller and Gateway retain their existing files. Setup

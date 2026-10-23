@@ -3,9 +3,10 @@
 English | [简体中文](SETUP.zh-CN.md)
 
 This guide installs **both Gateway and the Auto Quant executor in containers**
-using the `follow-stack-0.1.12-ubuntu24.04-arm64-cp312.tar.gz` kit. Start with an
-IBKR **paper account**, which simulates trading. You do not need to write code,
-use GitHub, build an image, or install an AI assistant.
+using the `follow-stack-0.2.0-ubuntu24.04-arm64-cp312.tar.gz` kit. Start with an
+IBKR **paper account**, which simulates trading. Use **Codex or Claude Code** to
+guide setup from scratch: [open the package and paste this prompt](../START_HERE.md).
+You do not need to write code, use GitHub or build an image.
 
 If your archive is named `follow-executor-…` instead, use the
 [native guide](SETUP_NATIVE.md). If Auto Quant is already installed on your VM,
@@ -47,8 +48,9 @@ computer. **Gateway** logs in to IBKR; the **executor** follows Auto Quant signa
 8. [Decide whether to start paper trading](#paper)
 9. [Daily use, updates and help](#daily)
 
-An AI assistant is optional. If you want one to guide you, use
-[Start here](../START_HERE.md). Your personal login and phone steps still need you.
+Start with [Codex or Claude Code](../START_HERE.md); the assistant follows these
+steps with you. Your personal login and phone steps still need you. This guide
+also contains the complete commands for manual use.
 
 <a id="prepare"></a>
 
@@ -58,17 +60,32 @@ An AI assistant is optional. If you want one to guide you, use
 
 | Item | What to do with it |
 | --- | --- |
-| `follow-stack-0.1.12-ubuntu24.04-arm64-cp312.tar.gz` | Save in your laptop's **Downloads** folder; leave it compressed. |
+| `follow-stack-0.2.0-ubuntu24.04-arm64-cp312.tar.gz` | Save in your laptop's **Downloads** folder; leave it compressed. |
 | Matching `.tar.gz.sha256` file | Save beside it. This lets Ubuntu verify the download. |
 | Personal relay token | Keep private; enter it into the wizard later. It connects you to the signal service. |
 | Expected provider public-key fingerprint | Keep for comparison with readiness results. This identifies the signal provider. |
 | Support contact and optional Discord invitation | Use the contact supplied with your customer download. |
 
 Get both download files from Auto Quant's trusted channel. Discord may supply the
-files or a download link. These examples use **0.1.12**; if your version differs,
+files or a download link. These examples use **0.2.0**; if your version differs,
 use its included guide and matching filenames. Do not mix releases.
 
-Have your **paper-trading username, password and paper account ID** ready. An
+First complete [IBKR account and secondary-login preparation](IBKR_ACCOUNT_SETUP.md):
+**Settings → Open an Additional Account**, then **User icon → Settings → User &
+Access Rights → Users → “+” Add** for a secondary username belonging to you.
+Reserve distinct logins for OCI Gateway and phone trading; a phone trading login
+with Gateway's username can disconnect Gateway. Reuse an existing dedicated
+account/login when verified. Check the paper login explicitly; creating a live
+secondary username does not automatically verify paper access.
+During the IBKR application select **Futures** and report your actual experience
+(select several years only if accurate). Before setup, complete the **gear-icon
+forms** for **Market Data API Acknowledgement** and **Market Data Subscriber
+Status**. Eligible customers choose **Non-Professional** and subscribe to
+**CME Real-Time (L1)** under **Level 1**, listed at **$1.55/month**; confirm the
+current recurring price yourself. The [IBKR guide](IBKR_ACCOUNT_SETUP.md) covers
+each form, permissions and paper-data access.
+
+Have your **dedicated paper-trading username, password and paper account ID** ready. An
 account ID, such as the fictitious `DU1234567`, is **not your login username**.
 Find your actual paper account ID in IBKR's paper-account selector or a paper
 account statement. Do not copy the example or substitute your live account ID.
@@ -91,8 +108,14 @@ Docker Desktop, and you do not need a GitHub account.
 **Where: your laptop's browser, then its terminal.** Follow the
 [illustrated Oracle Cloud walkthrough](OCI_ARM.md). It covers signup,
 cost/capacity choices, network settings, SSH-key download and first connection.
+For a new account, choose **US West (San Jose), `us-sanjose-1`** as the suggested
+Home Region. At Oracle Mobile 2FA, **first check “Offline mode or use another
+authenticator app”**, then enroll. **Before creating a VCN**, go to **Billing &
+Cost Management → Upgrade and Manage Payment**, add/verify a payment method,
+review and accept the upgrade, and wait for Plan Type to show **Pay As You Go**
+instead of **Free Tier**. See the [required payment checkpoint](OCI_ARM.md#oci-payment).
 Use **Ubuntu 24.04 LTS, Ampere A1 / ARM64**. A starting allocation is 2 OCPUs and
-8 GB memory; review displayed charges before creating the instance.
+12 GB memory; review displayed charges before creating the instance.
 
 Already have a VM? Use the walkthrough's [connection](OCI_ARM.md#oci-connect)
 and [verification](OCI_ARM.md#oci-check) steps. It must report `aarch64`, Ubuntu
@@ -157,14 +180,14 @@ Replace the IP placeholder, then paste the next command as **one line**. `scp`
 means secure file copy; keep the colon and `Downloads/` at the end.
 
 ```bash
-scp -i ./auto-quant.key follow-stack-0.1.12-ubuntu24.04-arm64-cp312.tar.gz follow-stack-0.1.12-ubuntu24.04-arm64-cp312.tar.gz.sha256 ubuntu@YOUR_OCI_PUBLIC_IP:Downloads/
+scp -i ./auto-quant.key follow-stack-0.2.0-ubuntu24.04-arm64-cp312.tar.gz follow-stack-0.2.0-ubuntu24.04-arm64-cp312.tar.gz.sha256 ubuntu@YOUR_OCI_PUBLIC_IP:Downloads/
 ```
 
 Wait for both transfers. **Back in Window A — Ubuntu**, run one line at a time:
 
 ```bash
 cd ~/Downloads
-sha256sum -c follow-stack-0.1.12-ubuntu24.04-arm64-cp312.tar.gz.sha256
+sha256sum -c follow-stack-0.2.0-ubuntu24.04-arm64-cp312.tar.gz.sha256
 ```
 
 **Checkpoint:** the archive's filename ends with **`OK`**. If you see `FAILED`,
@@ -174,8 +197,8 @@ or install a failed download.
 Extract into a permanent version folder in your Ubuntu home directory:
 
 ```bash
-tar -xzf follow-stack-0.1.12-ubuntu24.04-arm64-cp312.tar.gz -C ~
-cd ~/follow-stack-0.1.12-ubuntu24.04-arm64-cp312
+tar -xzf follow-stack-0.2.0-ubuntu24.04-arm64-cp312.tar.gz -C ~
+cd ~/follow-stack-0.2.0-ubuntu24.04-arm64-cp312
 ```
 
 No output from `tar` or `cd` is normal. Keep this extracted folder at this path;
@@ -226,7 +249,7 @@ ssh -i ./auto-quant.key ubuntu@YOUR_OCI_PUBLIC_IP
 **Once the Ubuntu prompt returns**, resume from the same folder:
 
 ```bash
-cd ~/follow-stack-0.1.12-ubuntu24.04-arm64-cp312
+cd ~/follow-stack-0.2.0-ubuntu24.04-arm64-cp312
 ./follow-stack setup
 ```
 
@@ -417,7 +440,7 @@ Each new SSH session starts outside the release folder. Connect as in step 2,
 then run:
 
 ```bash
-cd ~/follow-stack-0.1.12-ubuntu24.04-arm64-cp312
+cd ~/follow-stack-0.2.0-ubuntu24.04-arm64-cp312
 ```
 
 | What you want | Command / action |

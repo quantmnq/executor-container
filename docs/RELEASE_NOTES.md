@@ -1,13 +1,40 @@
-# Auto Quant 0.1.12 — position protection safeguards
+# Auto Quant 0.2.0 — guided setup with Codex and Claude Code
 
 English | [简体中文](RELEASE_NOTES.zh-CN.md)
 
-Prepared October 19, 2026 (US Pacific). This candidate adds position-protection
-safeguards, retains GPL source delivery and Gateway credential isolation, and
-updates the English and Simplified Chinese beginner guides to this release.
-Preparing this package does not publish it or update an existing installation.
+Prepared October 22, 2026 (US Pacific). This release makes Codex or Claude Code
+the main customer setup path from account preparation through a verified paper
+installation. It retains the existing trading engine, pins and protection rules.
 
-## New in 0.1.12
+## New in 0.2.0
+
+- English/Chinese START_HERE prompts, customer AGENTS.md/CLAUDE.md and generated
+  package README guide setup from scratch, with resumable account/cloud checkpoints.
+- OCI Home Region recommendation: **US West (San Jose), `us-sanjose-1`**.
+- Oracle Mobile MFA instructions select **Offline mode or use another
+  authenticator app** before scanning/enrollment.
+- Before any VCN creation, customers add/verify a payment method under **Billing &
+  Cost Management → Upgrade and Manage Payment**, accept the upgrade themselves,
+  and wait for **Plan Type: Pay As You Go**, replacing Free Tier.
+- New A1 ARM64 instance allocation: **2 OCPUs / 12 GB RAM**, increased from 8 GB.
+- New bilingual [IBKR account guide](IBKR_ACCOUNT_SETUP.md): **Open an Additional
+  Account**, then **User & Access Rights → Users → “+” Add** for a secondary
+  username. Separate Gateway/phone trading usernames avoid competing sessions.
+  Paper credentials, account permissions and market data are verified separately.
+- The private Gateway wizard reminds customers to use a dedicated login.
+  Account approvals, cost/terms acceptance and secrets stay with the customer.
+- IBKR preparation now selects **Futures** with truthful experience answers,
+  completes the gear-icon **Market Data API Acknowledgement** and **Market Data
+  Subscriber Status** forms, and guides eligible **Non-Professional** customers
+  to **CME Real-Time (L1)**, listed at **$1.55/month**. Customers confirm current
+  recurring fees and actual Gateway/paper data access.
+
+Existing working resources and accounts are reused. No running customer
+installation is changed by building or publishing these downloads. The new
+browser/account flow and concurrent phone/Gateway login still need observation
+on each customer's own accounts; automated checks cannot complete those steps.
+
+## Retained from 0.1.12
 
 - After observing an entry fill, including a partial fill, the executor allows
   **30 seconds** for a broker-confirmed stop covering exactly the held quantity
@@ -62,7 +89,7 @@ This candidate has not replaced the running pilot or been published.
 ## Included
 
 - A combined Gateway/executor setup wizard for Ubuntu 24.04 ARM64 and Python 3.12.
-  An AI assistant is optional; no host Java, venv or full desktop is required.
+  Codex or Claude Code guides setup; no host Java, venv or full desktop is required.
 - A bundled, immutable executor image and an upstream Gateway image pinned by
   digest. The Gateway version remains 10.51.1c.
 - Private terminal configuration, resumable setup, signed relay/account/quote
@@ -106,7 +133,7 @@ The new protection paths are covered by automated broker fixtures, including
 partial fills, restart persistence, scheduled cancellation, manual flattening,
 halted cleanup, delayed callbacks and cancellation/fill races. The container
 regression suite runs these tests against the installed bytecode with networking
-disabled. These new paths have not yet been exercised against a real IBKR paper
+disabled. These protection paths have not yet been exercised against a real IBKR paper
 account; the earlier pilot results below apply to the earlier implementation.
 No account login, executable order or service deployment is part of this rebuild.
 
@@ -130,7 +157,7 @@ quotes, relay access, margin and reconciliation.
 
 ## Installation and updates
 
-Use [the beginner setup guide](SETUP.md); [maintenance and recovery](CONTAINER_SETUP.md)
+Start with [Codex or Claude Code](../START_HERE.md) and [the beginner setup guide](SETUP.md); [maintenance and recovery](CONTAINER_SETUP.md)
 remain in the technical reference. Setup leaves trading stopped.
 Review readiness, account mode, instrument and quantity before explicitly running
 `./follow-stack start`.
