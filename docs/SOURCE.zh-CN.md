@@ -42,7 +42,8 @@ python3.12 scripts/build-bytecode.py
 python3.12 scripts/build-executor-container.py
 python3.12 scripts/test-executor-container.py
 python3.12 scripts/test-executor-isolation.py
-python3.12 scripts/collect-third-party-source.py --image follow-executor:0.2.0
+curl --fail --location --output /tmp/follow-dependencies.tar.gz https://github.com/quantmnq/executor-container/releases/download/v0.1.12/follow-executor-0.1.12-dependencies.tar.gz
+python3.12 scripts/collect-third-party-source.py --image follow-executor:0.2.0 --reuse-archive /tmp/follow-dependencies.tar.gz --reuse-sha256 c2740a33b3f91508c70116d4c0a4389b47fe2fd1748b16b5cf9f480dac0bb769
 python3.12 scripts/build-container-kit.py --build dist/executor-container/BUILD.json --third-party dist/third-party/SOURCES.json
 ```
 
@@ -60,3 +61,7 @@ CPython 补丁版本；这不代表整个 Docker
 
 修改后的版本也需要附带匹配源码和声明。校验值用于完整性检查，不是 DRM；可以使用
 提供的构建脚本重新生成安装包。源码交付和发布步骤请参阅[发布说明](RELEASING.zh-CN.md)。
+
+0.2.0 的依赖固定版本与 0.1.12 相同，上述命令按可信 SHA-256 复用该版准确的依赖源码。
+收集器验证压缩包及文件哈希，组合包构建器继续核对镜像完整依赖清单。依赖变更时，不带
+`--reuse-archive` 重新收集并核对来源；不得用较新源码替代实际安装的依赖版本。

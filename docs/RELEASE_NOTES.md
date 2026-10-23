@@ -28,6 +28,10 @@ installation. It retains the existing trading engine, pins and protection rules.
   Subscriber Status** forms, and guides eligible **Non-Professional** customers
   to **CME Real-Time (L1)**, listed at **$1.55/month**. Customers confirm current
   recurring fees and actual Gateway/paper data access.
+- Release builds can reuse a trusted dependency source archive when runtime pins
+  are unchanged. Archive and per-file checksums are verified, and the kit builder
+  still requires exact agreement with the installed image inventory. This avoids
+  relying on a current Debian index retaining every pinned source version.
 
 Existing working resources and accounts are reused. No running customer
 installation is changed by building or publishing these downloads. The new

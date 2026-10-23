@@ -22,7 +22,8 @@ bash -n follow follow-container follow-stack install.sh deploy/install-bytecode.
 python3.12 scripts/build-executor-container.py
 python3.12 scripts/test-executor-container.py
 python3.12 scripts/test-executor-isolation.py
-python3.12 scripts/collect-third-party-source.py --image follow-executor:0.2.0
+curl --fail --location --output /tmp/follow-dependencies.tar.gz https://github.com/quantmnq/executor-container/releases/download/v0.1.12/follow-executor-0.1.12-dependencies.tar.gz
+python3.12 scripts/collect-third-party-source.py --image follow-executor:0.2.0 --reuse-archive /tmp/follow-dependencies.tar.gz --reuse-sha256 c2740a33b3f91508c70116d4c0a4389b47fe2fd1748b16b5cf9f480dac0bb769
 python3.12 scripts/build-container-kit.py --build dist/executor-container/BUILD.json --third-party dist/third-party/SOURCES.json
 python3.12 scripts/build-source.py --output dist/source --export dist/public-repository
 ```
@@ -124,3 +125,9 @@ Publication does not deploy to the running pilot or authorize live trading.
 The native Gateway path remains available for existing installations; AMD64 is
 not a supported customer target. Changing the upstream Gateway pin requires its
 own login/recovery acceptance, independent of source-release packaging.
+
+For 0.2.0, runtime pins match 0.1.12, so the commands retain that release's exact
+dependency sources using the trusted SHA-256 above. The collector checks archive
+and file hashes; the kit builder checks the complete installed image inventory.
+If pins change, collect new sources without `--reuse-archive` and review their
+provenance. Never substitute newer source versions for installed dependencies.

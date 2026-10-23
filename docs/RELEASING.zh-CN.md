@@ -19,7 +19,8 @@ bash -n follow follow-container follow-stack install.sh deploy/install-bytecode.
 python3.12 scripts/build-executor-container.py
 python3.12 scripts/test-executor-container.py
 python3.12 scripts/test-executor-isolation.py
-python3.12 scripts/collect-third-party-source.py --image follow-executor:0.2.0
+curl --fail --location --output /tmp/follow-dependencies.tar.gz https://github.com/quantmnq/executor-container/releases/download/v0.1.12/follow-executor-0.1.12-dependencies.tar.gz
+python3.12 scripts/collect-third-party-source.py --image follow-executor:0.2.0 --reuse-archive /tmp/follow-dependencies.tar.gz --reuse-sha256 c2740a33b3f91508c70116d4c0a4389b47fe2fd1748b16b5cf9f480dac0bb769
 python3.12 scripts/build-container-kit.py --build dist/executor-container/BUILD.json --third-party dist/third-party/SOURCES.json
 python3.12 scripts/build-source.py --output dist/source --export dist/public-repository
 ```
@@ -100,3 +101,7 @@ VM 的 `.git/` 历史。代码没有假定仓库网址。
 发布源码不会部署到正在运行的试点，也不会授权实盘交易。原生 Gateway 路径保留给
 已有安装；AMD64 不是支持的客户平台。修改上游 Gateway 摘要需要单独进行登录/恢复
 验收，与源码发布打包检查分开。
+
+0.2.0 的依赖固定版本与 0.1.12 相同，上述命令按可信 SHA-256 复用该版准确的依赖源码。
+收集器验证压缩包及文件哈希，组合包构建器继续核对镜像完整依赖清单。依赖变更时，不带
+`--reuse-archive` 重新收集并核对来源；不得用较新源码替代实际安装的依赖版本。

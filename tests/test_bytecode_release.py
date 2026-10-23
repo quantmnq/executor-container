@@ -111,6 +111,37 @@ class BytecodeReleaseTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Invalid public export"):
                 source_builder["public_files"]()
 
+    def test_retained_dependency_sources_require_archive_and_file_integrity(self):
+        reuse = runpy.run_path(str(ROOT / "scripts/collect-third-party-source.py"))["reuse_sources"]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "original.tar.gz"
+            files = {"INVENTORY.json": b'{"python": "3.12", "debian": []}\n',
+                     "python/example.tar.gz": b"synthetic exact dependency source"}
+            sums = "".join(f"{hashlib.sha256(data).hexdigest()}  {name}\n"
+                           for name, data in files.items()).encode()
+
+            def archive(checksums):
+                with tarfile.open(source, "w:gz") as tar:
+                    for name, data in {**files, "SHA256SUMS": checksums}.items():
+                        member = tarfile.TarInfo("third-party-source/" + name)
+                        member.size = len(data)
+                        tar.addfile(member, io.BytesIO(data))
+                return hashlib.sha256(source.read_bytes()).hexdigest()
+
+            digest = archive(sums)
+            target = reuse(source, digest, root / "retained")
+            self.assertEqual(target.read_bytes(), source.read_bytes())
+            metadata = json.loads((target.parent / "SOURCES.json").read_text())
+            self.assertEqual(metadata["sha256"], digest)
+            self.assertEqual(set(metadata["files"]), set(files))
+            with self.assertRaisesRegex(ValueError, "archive checksum mismatch"):
+                reuse(source, "0" * 64, root / "bad-archive")
+            # Change a recorded file hash while preserving the archive's own hash.
+            digest = archive(sums.replace(sums[:64], b"0" * 64, 1))
+            with self.assertRaisesRegex(ValueError, "file checksum mismatch"):
+                reuse(source, digest, root / "bad-file")
+
     def test_loaded_application_cannot_change_rebuilt_wheel(self):
         # On CPython 3.12.15, importing protection.pyc used to change marshal's
         # reference flags in its next compilation, despite identical sources.

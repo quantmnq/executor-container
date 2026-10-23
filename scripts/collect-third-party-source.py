@@ -10,11 +10,12 @@ import ast
 import gzip
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 import tarfile
 import urllib.request
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parents[1]
 # Runs in a disposable image container with only the output directory mounted.
@@ -70,12 +71,56 @@ def download(url: str, target: Path, digest: str | None = None) -> dict:
     return {"url": url, "sha256": actual, "file": target.name}
 
 
+def reuse_sources(archive: Path, expected_sha256: str, output: Path) -> Path:
+    """Retain a verified earlier source bundle; the kit builder checks image inventory."""
+    if not re.fullmatch(r"[a-f0-9]{64}", expected_sha256):
+        raise ValueError("A trusted dependency archive SHA-256 is required")
+    with archive.open("rb") as handle:
+        actual = hashlib.file_digest(handle, "sha256").hexdigest()
+    if actual != expected_sha256:
+        raise ValueError("Retained dependency source archive checksum mismatch")
+    hashes = {}
+    with tarfile.open(archive) as source:
+        for member in source.getmembers():
+            path = PurePosixPath(member.name)
+            if (not member.isfile() or path.is_absolute() or ".." in path.parts
+                    or len(path.parts) < 2 or path.parts[0] != "third-party-source"):
+                raise ValueError("Invalid retained dependency source member")
+            name = path.relative_to("third-party-source").as_posix()
+            if name in hashes:
+                raise ValueError("Duplicate retained dependency source member")
+            with source.extractfile(member) as handle:
+                hashes[name] = hashlib.file_digest(handle, "sha256").hexdigest()
+        inventory = json.load(source.extractfile("third-party-source/INVENTORY.json"))
+        checksums = dict(line.split("  ", 1)[::-1] for line in
+                         source.extractfile("third-party-source/SHA256SUMS").read().decode().splitlines())
+    del hashes["SHA256SUMS"]
+    if hashes != checksums:
+        raise ValueError("Retained dependency source file checksum mismatch")
+    output.mkdir(parents=True, exist_ok=True)
+    target = output / "third-party-source.tar.gz"
+    if archive.resolve() != target.resolve():
+        shutil.copyfile(archive, target)
+    manifest = {"archive": target.name, "sha256": actual,
+                "inventory": inventory, "files": hashes}
+    (output / "SOURCES.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    return target
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--image", required=True)
     parser.add_argument("--output", type=Path, default=ROOT / "dist/third-party")
+    parser.add_argument("--reuse-archive", type=Path,
+                        help="Retain an existing dependency source archive when runtime pins are unchanged")
+    parser.add_argument("--reuse-sha256", help="Trusted SHA-256 of --reuse-archive; required together")
     args = parser.parse_args()
     args.output = args.output.resolve()
+    if bool(args.reuse_archive) != bool(args.reuse_sha256):
+        parser.error("--reuse-archive and --reuse-sha256 must be supplied together")
+    if args.reuse_archive:
+        print(reuse_sources(args.reuse_archive, args.reuse_sha256, args.output))
+        return
     tree = args.output / "third-party-source"
     tree.mkdir(parents=True, exist_ok=True)
     if not (tree / "DEBIAN_COMPLETE").exists():

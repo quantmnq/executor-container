@@ -212,7 +212,8 @@ From the source checkout, build into a separate output directory:
 ```bash
 python3.12 scripts/build-executor-container.py --tag follow-executor:0.2.0 --output dist/container-wizard/image
 python3.12 scripts/test-executor-container.py --image follow-executor:0.2.0
-python3.12 scripts/collect-third-party-source.py --image follow-executor:0.2.0
+curl --fail --location --output /tmp/follow-dependencies.tar.gz https://github.com/quantmnq/executor-container/releases/download/v0.1.12/follow-executor-0.1.12-dependencies.tar.gz
+python3.12 scripts/collect-third-party-source.py --image follow-executor:0.2.0 --reuse-archive /tmp/follow-dependencies.tar.gz --reuse-sha256 c2740a33b3f91508c70116d4c0a4389b47fe2fd1748b16b5cf9f480dac0bb769
 python3.12 scripts/build-container-kit.py --build dist/container-wizard/image/BUILD.json --third-party dist/third-party/SOURCES.json --output dist/container-wizard/kit
 ```
 
@@ -358,3 +359,9 @@ the source guides and validation records.
 The Sunday observer also
 did not verify a fresh Mobile challenge or live quotes.
 Do not rerun completed paper trade cycles merely to test the installer.
+
+For 0.2.0, runtime pins match 0.1.12, so the commands retain that release's exact
+dependency sources using the trusted SHA-256 above. The collector checks archive
+and file hashes; the kit builder checks the complete installed image inventory.
+If pins change, collect new sources without `--reuse-archive` and review their
+provenance. Never substitute newer source versions for installed dependencies.

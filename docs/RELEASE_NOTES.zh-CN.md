@@ -21,6 +21,8 @@
 - IBKR 选择 **Futures** 并如实填写经验，点击齿轮完成 **Market Data API Acknowledgement**
   和 **Market Data Subscriber Status**；符合 **Non-Professional** 资格的客户选
   **CME Real-Time (L1)**，公开价 **每月 $1.55**，自行核对当前循环费用及 Gateway／模拟行情访问。
+- 固定依赖未变时，构建工具可复用可信的依赖源码包，验证压缩包及每个文件哈希，并要求与镜像
+  已安装依赖清单完全一致，避免当前 Debian 索引移除旧源码版本导致无法打包。
 
 已有可用资源及账户复用，构建或发布下载不会修改正在运行的客户安装。
 新的浏览器／账户流程及手机／Gateway 共存，仍须在每位客户账户上实际确认，自动化检查不能代替。
