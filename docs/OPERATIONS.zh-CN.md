@@ -12,7 +12,7 @@
 
 ## 设置与风险限制
 
-如果配置已存在，`./follow configure` 会重新运行品种和数量设置向导。`./follow settings --root MNQ --quantity 2` 可在命令行完成同样的变更。操作时服务必须已停止，且 Gateway 必须可访问并已登录。如果存在持仓、活动订单、券商快照不完整或执行器处于暂停状态，变更会被拒绝。切换品种时会同时检查 MNQ 和 NQ。交易日志数据库会保留，包括已结束的交易，因此修改设置不会清除防止重复执行的记录。
+如果配置已存在，`./follow configure` 或不带参数的 `./follow settings` 会重新运行仓位设置向导：选择 `balance` 并输入杠杆比例（按 IBKR NetLiquidation 预览各分支的 NQ/MNQ 数量），或选择固定数量的 `MNQ`/`NQ`。`./follow settings --leverage-fraction 0.5` 或 `./follow settings --root MNQ --quantity 2` 可在命令行完成同样的变更。操作时服务必须已停止，且 Gateway 必须可访问并已登录。如果存在持仓、活动订单、券商快照不完整或执行器处于暂停状态，变更会被拒绝。切换品种或切换到／离开余额仓位时，会同时检查 MNQ 和 NQ。交易日志数据库会保留，包括已结束的交易，因此修改设置不会清除防止重复执行的记录。
 
 默认最大数量为 10 份合约，硬性上限为 100。若要更改数量上限，请在空仓时停止服务，编辑私有配置中的 `risk.max_quantity`，再通过 `settings` 设置所需数量。`risk.max_margin_fraction` 默认值为 0.5；`risk.max_stop_risk_usd` 可提供额外的入场风险上限。这些设置是限制条件，不是合适仓位大小的建议。NQ 与 MNQ 的美元合约乘数不同；执行器会使用所选品种的乘数计算可选的止损风险限制。
 

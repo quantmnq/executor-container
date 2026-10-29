@@ -2,7 +2,7 @@
 
 [English](SETUP.md) | 简体中文
 
-本指南使用 `follow-stack-0.2.0-ubuntu24.04-arm64-cp312.tar.gz` 安装包，
+本指南使用 `follow-stack-0.3.0-ubuntu24.04-arm64-cp312.tar.gz` 安装包，
 将 **Gateway 和 Auto Quant 执行器一起安装在容器中**。先使用 IBKR **模拟账户
 （paper）**，不涉及真实资金交易。请用 **Codex 或 Claude Code** 按[从这里开始](../START_HERE.zh-CN.md)
 打开安装包并粘贴提示，让助手从零指导。你无需编写代码、使用 GitHub 或构建镜像。
@@ -56,14 +56,14 @@
 
 | 资料 | 用途与保存方式 |
 | --- | --- |
-| `follow-stack-0.2.0-ubuntu24.04-arm64-cp312.tar.gz` | 保存到电脑的 **Downloads（下载）**文件夹，暂时不要解压。 |
+| `follow-stack-0.3.0-ubuntu24.04-arm64-cp312.tar.gz` | 保存到电脑的 **Downloads（下载）**文件夹，暂时不要解压。 |
 | 匹配的 `.tar.gz.sha256` 文件 | 与安装包放在一起，用于检查下载是否完整且未改变。 |
 | 个人 relay token（信号服务访问令牌） | 私密保存，稍后在向导中输入，用于连接信号服务。 |
 | 预期的提供方公钥指纹 | 与就绪检查结果对比，确认信号提供方身份。 |
 | 支持联系方式及可选的 Discord 邀请 | 使用客户下载渠道提供的联系方式。 |
 
 从 Auto Quant 的可信渠道取得两个下载文件。Discord 可以提供附件或下载链接。
-本指南使用 **0.2.0**；如果你拿到的版本不同，请使用该版本包内的指南和匹配文件名，
+本指南使用 **0.3.0**；如果你拿到的版本不同，请使用该版本包内的指南和匹配文件名，
 不要混用不同版本的文件。
 
 先完成 [IBKR 账户及第二用户名准备](IBKR_ACCOUNT_SETUP.zh-CN.md)：
@@ -165,14 +165,14 @@ cd ~/Downloads
 保留末尾的冒号和 `Downloads/`。
 
 ```bash
-scp -i ./auto-quant.key follow-stack-0.2.0-ubuntu24.04-arm64-cp312.tar.gz follow-stack-0.2.0-ubuntu24.04-arm64-cp312.tar.gz.sha256 ubuntu@YOUR_OCI_PUBLIC_IP:Downloads/
+scp -i ./auto-quant.key follow-stack-0.3.0-ubuntu24.04-arm64-cp312.tar.gz follow-stack-0.3.0-ubuntu24.04-arm64-cp312.tar.gz.sha256 ubuntu@YOUR_OCI_PUBLIC_IP:Downloads/
 ```
 
 等待两个文件都上传完成。**回到窗口 A——Ubuntu**，一次运行一行：
 
 ```bash
 cd ~/Downloads
-sha256sum -c follow-stack-0.2.0-ubuntu24.04-arm64-cp312.tar.gz.sha256
+sha256sum -c follow-stack-0.3.0-ubuntu24.04-arm64-cp312.tar.gz.sha256
 ```
 
 **本步完成标志：**文件名后显示 **`OK`**。如果显示 `FAILED`，停止操作，从可信
@@ -181,8 +181,8 @@ sha256sum -c follow-stack-0.2.0-ubuntu24.04-arm64-cp312.tar.gz.sha256
 解压到 Ubuntu 家目录中的固定版本目录：
 
 ```bash
-tar -xzf follow-stack-0.2.0-ubuntu24.04-arm64-cp312.tar.gz -C ~
-cd ~/follow-stack-0.2.0-ubuntu24.04-arm64-cp312
+tar -xzf follow-stack-0.3.0-ubuntu24.04-arm64-cp312.tar.gz -C ~
+cd ~/follow-stack-0.3.0-ubuntu24.04-arm64-cp312
 ```
 
 `tar` 或 `cd` 没有输出通常是正常的。保留这个目录的原路径，已安装的 Gateway
@@ -232,7 +232,7 @@ ssh -i ./auto-quant.key ubuntu@YOUR_OCI_PUBLIC_IP
 **看到 Ubuntu 提示符后**，回到同一个目录继续：
 
 ```bash
-cd ~/follow-stack-0.2.0-ubuntu24.04-arm64-cp312
+cd ~/follow-stack-0.3.0-ubuntu24.04-arm64-cp312
 ./follow-stack setup
 ```
 
@@ -251,13 +251,18 @@ cd ~/follow-stack-0.2.0-ubuntu24.04-arm64-cp312
 | --- | --- |
 | Account mode `[paper]` | 账户模式：按回车选择模拟交易。 |
 | IBKR account ID | 输入模拟账户 ID，不是用户名。 |
-| Instrument `[MNQ]` | 合约：如果你选择 MNQ，按回车。 |
-| Number of contracts (1–10) `[1]` | 数量：如果你选择模拟交易 1 手，按回车。 |
+| Sizing `[balance]` | 仓位方式：按回车选择余额仓位，即每次新入场时按账户余额计算 NQ 加 MNQ 余数。若要固定交易一种合约，输入 `MNQ` 或 `NQ`。 |
+| Leverage fraction of the leader's 6x band | 杠杆比例：输入你选择的数字，大于 0 且不超过 1，例如 `0.5`。`1` 与领单方仓位完全一致，`0.5` 为一半。 |
+| Your current IBKR NetLiquidation in USD, for a size preview `(Enter to skip)` | 可选：模拟账户的大致余额，仅用于预览数量，不会保存。 |
+| Approximate current NQ price, for the preview `(Enter to skip)` | 可选：例如 `21000`。 |
+| Number of contracts (1–10) `[1]` | 仅在选择固定 `MNQ`/`NQ` 数量时询问。 |
 | Personal relay token `(hidden)` | 粘贴 Auto Quant 私下提供的个人令牌并回车；输入时可能没有任何显示。 |
 
-MNQ 和 NQ 是不同的期货合约，NQ 的合约价值更大。不确定时先暂停，与 Auto Quant
-确认。本指南示例使用 **paper、1 手 MNQ**。已有设置会被复用，应核对向导实际
-显示的内容。此时还没有启动交易。
+选择余额仓位时，预览会显示各分支的数量，例如最大分支为 `1 NQ + 7 MNQ`，最小分支为
+`7 MNQ`；标为 `no entry` 的分支在该余额下取整为 0 张，不会交易。稍后的就绪检查会按你在 IBKR 的真实余额再次显示。MNQ 和 NQ 是不同的期货合约，
+一张 NQ 等于十张 MNQ。不确定时先暂停，与 Auto Quant 确认。本指南示例使用
+**paper、余额仓位、杠杆比例 0.5**。已有设置会被复用，应核对向导实际显示的内容。
+此时还没有启动交易。
 
 <a id="gateway"></a>
 
@@ -294,8 +299,8 @@ After login, press Enter to check readiness, or type later to pause:
 **`Setup checks passed, including a live quote for the selected contract.`**
 即检查通过，已取得所选合约的实时行情。这里的 **live quote 指实时行情，不是切换到真实交易账户**。
 
-将 `leader_key_id` 与 Auto Quant 提供的预期公钥指纹对比，并确认模拟模式、账户、
-合约和数量。失败时查看[帮助](#help)，不要用启动交易绕过检查。
+将 `leader_key_id` 与 Auto Quant 提供的预期公钥指纹对比，并确认模拟模式、账户和
+仓位：余额仓位时核对 `sizing` 部分的 NetLiquidation、杠杆比例及各分支的 NQ/MNQ 数量。失败时查看[帮助](#help)，不要用启动交易绕过检查。
 
 <a id="gateway-api"></a>
 
@@ -373,8 +378,7 @@ After login, press Enter to check readiness, or type later to pause:
 ./follow-stack check
 ```
 
-确认完整检查通过，包括行情、预期的提供方指纹，以及**你选择的模拟模式、合约和
-数量**。先解决报告中的问题。检查可能请求保证金估算，但不会提交可执行订单。
+确认完整检查通过，包括行情、预期的提供方指纹，以及**你选择的模拟模式和仓位**。先解决报告中的问题。检查可能请求保证金估算，但不会提交可执行订单。
 
 启动前阅读[执行器如何保护持仓](EXECUTOR.zh-CN.md)。观察到入场成交后 30 秒仍无
 匹配止损，或已有止损意外失效后 60 秒仍未恢复时，本版本会启动紧急平仓。
@@ -388,7 +392,7 @@ After login, press Enter to check readiness, or type later to pause:
 ./follow-stack start
 ```
 
-阅读实际显示的设置。对于 **paper、1 手 MNQ**，确认文字为 `START PAPER 1 MNQ`。
+阅读实际显示的设置。对于 **paper、余额仓位 0.5**，确认文字为 `START PAPER BALANCE 0.5`（固定数量类似 `START PAPER 1 MNQ`）。
 只有设置符合你的意愿才输入。如果显示 `LIVE` 或其他数量，不要确认，先寻求帮助。
 提示以实际保存的配置为准，不以本指南示例为准。
 
@@ -408,7 +412,7 @@ After login, press Enter to check readiness, or type later to pause:
 每次重新 SSH 登录，通常不在版本目录中。按第 2 步连接后先运行：
 
 ```bash
-cd ~/follow-stack-0.2.0-ubuntu24.04-arm64-cp312
+cd ~/follow-stack-0.3.0-ubuntu24.04-arm64-cp312
 ```
 
 | 目的 | 命令／操作 |
@@ -436,6 +440,9 @@ cd ~/follow-stack-0.2.0-ubuntu24.04-arm64-cp312
 
 首次更新前联系 Auto Quant。保留旧版目录、配置、Gateway 数据及交易记录，不要删除
 状态来“从头开始”。原生安装需要审查后的迁移流程，本指南的全新安装步骤不是迁移流程。
+
+**从 0.2.0 升级到 0.3.0？** 请按[升级指南](UPGRADE.zh-CN.md)操作。它会保留交易日志和令牌，
+安装新安装包，询问你的杠杆比例，并重新生成服务。
 
 兼容的容器版本使用[容器维护参考](CONTAINER_SETUP.zh-CN.md)中的停止且空仓更新步骤。
 升级本身不代表同意启动交易。不要把私密备份发送到聊天或 Discord。

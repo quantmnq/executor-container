@@ -74,6 +74,7 @@ def payload(
     stop_atr: float = 11.5,
     plan: dict[str, str] | None | str = "next_open",
     month: str = "202612",
+    sizing: dict[str, float] | None = None,
 ) -> str:
     """A payload shaped like the live runner's (see the relay's seq 1 and 2)."""
 
@@ -101,6 +102,8 @@ def payload(
             "protective_stop": None if stop is None else {"price": stop},
             "exit_plan": plan,
         }
+        if sizing is not None:
+            target["sizing"] = sizing
     return canonical({
         "schema": "signal.v1", "stream": STREAM, "seq": seq, "emitted_at": emitted.isoformat(),
         "cause": cause, "changed": [], "strategy": {"profile": "simpler-lower-dd-r334"},
@@ -144,7 +147,10 @@ class FakeBroker:
         self.rejections: list[Rejection] = []
         self.market = 30780.25
         self.margin = MarginEstimate(5_000.0, 100_000.0)
+        self.margins: dict[str, MarginEstimate] = {}
         self.what_if_error: Exception | None = None
+        self.net_liq = 250_000.0
+        self.net_liq_error: Exception | None = None
         self.acknowledge = True
         self.auto_fill = True
         self.reject: dict[str, tuple[int, str]] = {}
@@ -237,7 +243,13 @@ class FakeBroker:
         self.calls.append(("what_if", request))
         if self.what_if_error is not None:
             raise self.what_if_error
-        return self.margin
+        return self.margins.get(request.contract.root, self.margin)
+
+    def net_liquidation(self) -> float:
+        self.calls.append(("net_liquidation", None))
+        if self.net_liq_error is not None:
+            raise self.net_liq_error
+        return self.net_liq
 
     # Test controls
     def fill(self, order_id: int, quantity: int | None = None, price: float | None = None) -> None:
@@ -263,9 +275,18 @@ class FakeBroker:
     def working(self, purpose: str) -> list[OrderView]:
         return [o for o in self.orders.values() if o.working and o.purpose == purpose]
 
-    def trigger_stop(self) -> None:
-        (stop,) = self.working("stop")
+    def trigger_stop(self, root: str | None = None) -> None:
+        (stop,) = [order for order in self.working("stop") if root is None or order.root == root]
         self.fill(stop.order_id)
+
+    def held(self) -> dict[str, int]:
+        """Positions by root, such as {"NQ": 1, "MNQ": 7}."""
+        held: dict[str, int] = {}
+        for con_id, quantity in self.positions.items():
+            if quantity:
+                root = self.contracts[con_id].root
+                held[root] = held.get(root, 0) + quantity
+        return held
 
     def placed(self, purpose: str) -> list[OrderRequest]:
         return [req for kind, req in self.calls if kind == "place" and req.purpose == purpose]

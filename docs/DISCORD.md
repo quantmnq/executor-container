@@ -90,6 +90,12 @@ It excludes commissions and fees. This is the executor's calculation, not IBKR's
 net account P/L; it covers only this executor's recorded trades. Missing entry
 history is explicitly marked unavailable instead of reporting an invented P/L.
 
+With balance sizing, one trade can hold NQ plus an MNQ remainder, for example
+**1 NQ + 5 MNQ**. Each contract is its own round trip, so you receive one message
+per contract (`LONG — 1 NQ.` and `LONG — 5 MNQ.`), each with its own average
+price, contract and $20 or $2 per-point P/L. Together they name the book;
+`./follow-stack status` shows it as `"book": "1 NQ + 5 MNQ"`.
+
 Partial entries/exits can update LONG/SHORT and its remaining quantity; a partial
 exit is not FLAT. A reversal closes one round trip before opening the opposite
 side. IBKR corrections recalculate the affected trade and carry a `Correction:`

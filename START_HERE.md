@@ -9,6 +9,11 @@ shows how to open a terminal on Windows/Mac, connect to Ubuntu, transfer the
 kit and answer the wizard. Both Gateway and executor use containers.
 The Chinese guide is [here](docs/SETUP.zh-CN.md).
 
+**Already running 0.2.0?** Do not reinstall. Follow the
+[upgrade guide](docs/UPGRADE.md) while flat: it keeps your journal and token,
+installs this kit, asks for your leverage fraction and regenerates the service.
+[升级指南（中文）](docs/UPGRADE.zh-CN.md).
+
 If your archive is named `follow-executor-…` rather than `follow-stack-…`, use
 [the native guide](docs/SETUP_NATIVE.md). The AI workflow below applies
 to either kit; the assistant must identify the package before choosing commands.
@@ -74,8 +79,8 @@ those files automatically:
 > action at a time when you need my browser, terminal or phone. Have me enter
 > passwords and tokens directly into my own terminal, never this chat, and do not
 > read credential files. Start with paper trading. Before starting any trading,
-> show the check results and ask me to confirm the account mode, instrument and
-> quantity. The container wizard configures Gateway API settings automatically. If manual
+> show the check results and ask me to confirm the account mode and my sizing:
+> the leverage fraction I chose and each leg's NQ/MNQ split, or a fixed size. The container wizard configures Gateway API settings automatically. If manual
 > inspection is needed, show the included Gateway screenshots before asking me to click. If I choose Discord notifications, show
 > me the #bot-setup screenshot when linking AQ Bot. Keep a private, secret-free
 > progress note so we can resume later.
@@ -88,8 +93,9 @@ customers do not need one.
 ## 3. Answer the assistant and complete the personal steps
 
 The assistant will ask about your computer, existing VM, dedicated IBKR account
-and secondary login, paper account, chosen
-instrument/quantity, and whether you want Discord notifications. It will check
+and secondary login, paper account, your **leverage fraction** (above 0, at most
+1; 1 follows the leader's full 6x size) or a fixed size, and whether you want
+Discord notifications. It will check
 the download, install the software, and work through the existing setup prompts.
 
 You still complete Oracle signup/verification and spending decisions, IBKR terms

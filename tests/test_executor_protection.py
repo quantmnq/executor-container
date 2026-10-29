@@ -157,6 +157,22 @@ class ProtectionDeadlineTests(ExecutorTestCase):
         self.run_at_deadline()
         self.assert_exit("SELL")
 
+    def test_drift_rule_name_before_next_rth_open_keeps_the_planned_exception(self) -> None:
+        cancel_at, flatten_at = OPEN - timedelta(minutes=6), OPEN - timedelta(minutes=5)
+        plan = {"rule": "before_next_rth_open", "cancel_stop_at": cancel_at.isoformat(),
+                "flatten_at": flatten_at.isoformat(), "minutes_before_open": "5"}
+        self.executor.on_signal(target(1, "entry", plan=plan))
+        self.settle()
+        self.clock.now = cancel_at
+        self.settle()
+        self.assertEqual(self.broker.working("stop"), [])
+        self.assertEqual(self.deadline(), flatten_at + timedelta(seconds=30))
+        self.clock.now = flatten_at + timedelta(seconds=5)
+        self.settle()
+        self.assertEqual(self.broker.placed("exit"), [])
+        self.run_at_deadline()
+        self.assert_exit("SELL")
+
     def test_restart_preserves_entry_deadline(self) -> None:
         self.block_stops()
         self.enter()

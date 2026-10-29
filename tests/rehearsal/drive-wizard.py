@@ -34,7 +34,7 @@ def main():
     elif args.phase == "configure":
         prompts = [("Account mode [paper]:", "paper\n"),
                    ("IBKR account ID (for example DU1234567):", "DU1234567\n"),
-                   ("Instrument [MNQ]:", "MNQ\n"), ("Number of contracts (1–10) [1]:", "1\n"),
+                   ("Sizing [balance]:", "MNQ\n"), ("Number of contracts (1–10) [1]:", "1\n"),
                    ("Personal relay token (hidden):", "disposable-rehearsal-token\n"),
                    ("4/5  Gateway login", "\x03")]
     else:

@@ -44,7 +44,7 @@
 
 | 资料 | 用途 |
 | --- | --- |
-| `follow-executor-0.2.0-ubuntu24.04-arm64-cp312.tar.gz` | 安装压缩包，请保留原文件名 |
+| `follow-executor-0.3.0-ubuntu24.04-arm64-cp312.tar.gz` | 安装压缩包，请保留原文件名 |
 | 配套的 `.tar.gz.sha256` 文件 | 一个小文件，让 Ubuntu 检查下载是否完整、是否发生变化 |
 | 你的个人 relay token 和预期的 leader 公钥指纹 | 私人接入码，以及核对信号提供方身份的标识 |
 | Auto Quant Discord 邀请链接 | 仅在需要交易私信时使用 |
@@ -103,7 +103,7 @@ cd ~/Downloads
 将 `YOUR_OCI_PUBLIC_IP` 替换成实例的**公网 IPv4 地址**，然后将下面的命令作为**完整一行**粘贴。`scp` 表示“安全复制文件”。保留末尾的冒号和 `Downloads/`。
 
 ```bash
-scp -i ./auto-quant.key follow-executor-0.2.0-ubuntu24.04-arm64-cp312.tar.gz follow-executor-0.2.0-ubuntu24.04-arm64-cp312.tar.gz.sha256 ubuntu@YOUR_OCI_PUBLIC_IP:Downloads/
+scp -i ./auto-quant.key follow-executor-0.3.0-ubuntu24.04-arm64-cp312.tar.gz follow-executor-0.3.0-ubuntu24.04-arm64-cp312.tar.gz.sha256 ubuntu@YOUR_OCI_PUBLIC_IP:Downloads/
 ```
 
 等待两个文件都传送完成。如果首次连接要求确认，请先核对地址是否属于你的实例，再接受。
@@ -112,15 +112,15 @@ scp -i ./auto-quant.key follow-executor-0.2.0-ubuntu24.04-arm64-cp312.tar.gz fol
 
 ```bash
 cd ~/Downloads
-sha256sum --check follow-executor-0.2.0-ubuntu24.04-arm64-cp312.tar.gz.sha256
+sha256sum --check follow-executor-0.3.0-ubuntu24.04-arm64-cp312.tar.gz.sha256
 ```
 
 你应看到压缩包名称后显示 **OK**。这能发现下载不完整或文件被更改的问题；你不需要理解或手动输入那串很长的校验值。如果显示 **FAILED**，请停止，从 Auto Quant 重新下载这两个文件。检查通过后，再解压到长期使用的安装位置：
 
 ```bash
 mkdir -p ~/auto-quant
-tar -xzf follow-executor-0.2.0-ubuntu24.04-arm64-cp312.tar.gz -C ~/auto-quant
-cd ~/auto-quant/follow-executor-0.2.0-ubuntu24.04-arm64-cp312
+tar -xzf follow-executor-0.3.0-ubuntu24.04-arm64-cp312.tar.gz -C ~/auto-quant
+cd ~/auto-quant/follow-executor-0.3.0-ubuntu24.04-arm64-cp312
 ./install.sh --verify-only
 ```
 
@@ -272,8 +272,9 @@ IBC 会自动设置 API 端口和受信任地址；首次登录时仍请检查�
 | --- | --- |
 | Account mode | `paper` |
 | IBKR account ID | Gateway 中显示的模拟账户，例如 `DU1234567`；它**不是**登录用户名 |
-| Instrument | 按订阅约定选择 `MNQ` 或 `NQ` |
-| Number of contracts | 你选择的整数合约数量，建议输入框的默认值为 1 |
+| Sizing | 按订阅约定选择 `balance`（默认：按余额交易 NQ 加 MNQ 余数）或固定数量的 `MNQ`/`NQ` |
+| Leverage fraction | 选择 `balance` 时：你选择的数字，大于 0 且不超过 1；`1` 表示完全按领单方 6 倍仓位。随后是可选的预览提示，按回车可跳过 |
+| Number of contracts | 选择固定数量时：你选择的整数合约数量，建议输入框的默认值为 1 |
 | Personal relay token | Auto Quant 提供的私人接入码，输入时不显示 |
 
 常用的服务地址和信号流已经预设。如果 Auto Quant 特别提供了自定义连接资料，首次设置时才使用 `./follow configure --advanced`，普通服务不需要它。
@@ -335,7 +336,7 @@ AQ Bot 还会报告 Gateway/API 或行情问题、经核实的恢复、Auto Quan
 | 检查项 | 要求 |
 | --- | --- |
 | `account_type` | `paper` |
-| `root` 和 `quantity` | 与第 6 步的品种、数量一致 |
+| `root` 和 `quantity`，或 `sizing` | 与第 6 步选择的固定数量，或杠杆比例及各分支数量一致 |
 | `leader_key_id` | 与 Auto Quant 提供的指纹一致 |
 | `problems` | 空列表：`[]` |
 
@@ -367,7 +368,7 @@ ssh -i ./auto-quant.key ubuntu@YOUR_OCI_PUBLIC_IP
 提示符变为 Ubuntu 后，进入安装文件夹：
 
 ```bash
-cd ~/auto-quant/follow-executor-0.2.0-ubuntu24.04-arm64-cp312
+cd ~/auto-quant/follow-executor-0.3.0-ubuntu24.04-arm64-cp312
 ```
 
 之后在 **Ubuntu 上**使用这些命令：

@@ -280,7 +280,7 @@ class Stack:
         if not self.config.exists():
             self.invoke_required("configure")
         current = self.current_config()
-        print(f"Saved setup: {current.ibkr.account_type}, {current.quantity} {current.root}. Credentials stay private.")
+        print(f"Saved setup: {current.ibkr.account_type}, {current.size_label}. Credentials stay private.")
 
         print("4/5  Gateway login", flush=True)
         if not (self.gateway_dir / "gateway.json").exists():
@@ -305,7 +305,7 @@ class Stack:
             print("For a login dialog use the private VNC screen. Trading has not been started.")
             return result
         print("Setup checks passed, including a live quote for the selected contract.")
-        print(f"Review {current.ibkr.account_type}, {current.quantity} {current.root}; then explicitly run './follow-stack start'.")
+        print(f"Review {current.ibkr.account_type}, {current.size_label}; then explicitly run './follow-stack start'.")
         print("Trading is stopped. Optional notifications: ./follow-stack discord link")
         return 0
 
@@ -321,7 +321,7 @@ class Stack:
         if self.pin.read_text().strip() != self.image_metadata()["id"]:
             raise ConfigError("Installed executor image differs from this release; review the upgrade.")
         current = self.current_config()
-        confirmation = f"START {current.ibkr.account_type.upper()} {current.quantity} {current.root}"
+        confirmation = f"START {current.ibkr.account_type.upper()} {current.size_label}"
         print("Starting will check readiness, enable automatic recovery and begin following trading signals.")
         if input(f"Type {confirmation} to continue: ").strip() != confirmation:
             print("Cancelled. No trading start requested.")

@@ -32,7 +32,7 @@ case "${1:-help}" in
         echo 'Discord notifications: ./follow discord {link|enable|status|unlink}'
         echo 'IBC Gateway automation: ./follow gateway {configure|start|stop|status|logs}'
         echo 'Optional container pilot: ./follow gateway configure --backend docker --vnc'
-        echo 'Change size/instrument while stopped and flat: ./follow settings --root MNQ --quantity 2'
+        echo 'Change sizing while stopped and flat: ./follow settings (asks), --leverage-fraction 0.5, or --root MNQ --quantity 2'
         ;;
     *) command_name=$1; shift; exec "$executor_bin" "$command_name" --config "$config_path" "$@" ;;
 esac

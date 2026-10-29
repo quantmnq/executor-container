@@ -9,6 +9,49 @@ leader never sees your credentials, account number, size or prices.
 Start on an IBKR paper account. Use a live account only after the paper run
 behaves as you expect.
 
+## Sizing
+
+From 0.3.0, setup asks for a **leverage fraction** `f` above 0 and at most 1.
+`f = 1` follows the leader's own 6x balance sizing with its 5.88x–6.6x band;
+`f = 0.5` is half of it. The configuration is
+`"sizing": {"mode": "balance", "leverage_fraction": f}`.
+
+At each **new entry while flat**, the executor sizes one book:
+
+1. `E` is your account's IBKR NetLiquidation in USD; `P` is the signal's
+   `entry.reference_price` (the leader's NQ decision-bar close); one MNQ unit's
+   notional is `N = 2 × P`.
+2. The first base is `floor(6 × f × E / N)` MNQ units. Afterwards the last base
+   `n` in your journal is kept while `n × N` stays at or below `6.6 × f × E`,
+   reset to `floor(6 × f × E / N)` above it, and raised one unit at a time while
+   `(n + 1) × N` stays at or below `5.88 × f × E`. The band numbers come from
+   each signal's `sizing`, scaled by `f`.
+3. The leg trades `round_half_up(base × weight)` units: `units // 10` NQ plus
+   `units % 10` MNQ of `contract_month`, both sent at the same decision. For
+   example 17 units is **1 NQ + 7 MNQ**; at weight 0.4 it is 7 MNQ. There is no
+   minimum: with a base of 1, a 0.4-weight Friday Drift rounds to 0 and is not
+   traded, a 0.65-weight Gap trades 1 MNQ, and a base of 2 trades 1 MNQ at 0.4.
+
+If NetLiquidation or the reference price is unavailable, the last base is
+reused; without one the entry is refused. A base of 0, a size that rounds to
+0 contracts, a signal without `sizing`, or an order above `risk.max_quantity`
+also refuses the entry and sends no order, with the reason (for example
+`size rounds to 0 contracts`) in `./follow status`. A held position never resizes, including a
+Gap→Drift continuation. NetLiquidation must be reported in USD.
+
+A configuration without `sizing` keeps the fixed 0.2.0 behavior: one root,
+the same unweighted `instrument.quantity` every trade.
+
+### The NQ + MNQ book
+
+Both contracts belong to one trade. The margin and stop-risk checks cover the
+whole book before either order is sent. Each contract has its own protective
+stop at the leader's price and follows every trailing move, the pre-open
+cancellation, the scheduled exit, emergency exits and restart reconciliation.
+If only one contract's stop fills, the other keeps its stop and exits on
+schedule. `./follow status` shows the book as, for example, `1 NQ + 5 MNQ`;
+Discord sends one position message per contract.
+
 ## What it does
 
 | Leader target | Executor |
@@ -43,10 +86,11 @@ Rules that protect you:
   broker disconnection, delayed confirmations or a closed market can delay the
   exit. An elapsed timer is handled after reconnection and reconciliation.
 - **Verified pre-open cancellation.** If this executor deliberately cancels a
-  matching stop under a signed `next_rth_open` plan, the scheduled exit deadline
-  replaces the 60-second replacement deadline: `flatten_at` plus the configured
-  exit grace, capped at **30 seconds**. For a 9:29 AM Eastern cancellation and
-  9:30 AM exit, that means 9:30:30 at the latest. It requires a recorded request
+  matching stop under a signed `next_rth_open` (or `before_next_rth_open`) plan,
+  the scheduled exit deadline replaces the 60-second replacement deadline:
+  `flatten_at` plus the configured exit grace, capped at **30 seconds**. For
+  Drift's 9:24 AM Eastern cancellation and 9:25 AM exit, that means 9:25:30 at
+  the latest. Each contract of a book is checked separately. It requires a recorded request
   by this executor and broker confirmation that the stop is cancelled/absent;
   being near the opening time does not exempt a manual or unexpected cancellation.
   The plan must specify a one-minute cancellation window. A changed plan, new
@@ -66,12 +110,18 @@ Rules that protect you:
   they are not cancelled through a global account-wide cancel.
 - **Margin.** Before an entry, an IBKR what-if must show initial margin at or
   below `max_margin_fraction` of equity (default 0.5). It is cached for up to
-  15 minutes. If the check fails or is unavailable, the entry is refused.
+  15 minutes. If the check fails or is unavailable, the entry is refused. For
+  a book, the NQ order's margin plus the MNQ order's increment must fit; when
+  IBKR omits the figure before the order, the whole MNQ margin is added.
+  At `f = 1` the book's initial margin can approach half of NetLiquidation, so
+  `./follow check` shows the largest leg's margin before you start.
 - **Optional stop-risk ceiling.** With `max_stop_risk_usd` set, the executor
-  refuses an entry whose size × multiplier × stop distance exceeds it.
-- **Dedicated account.** The executor owns your chosen root (NQ or MNQ) in
-  the account. It halts if it finds a position or working order on that root
-  that it did not create.
+  refuses an entry whose size × multiplier × stop distance, summed over the
+  book, exceeds it.
+- **Dedicated account.** The executor owns your chosen root (NQ or MNQ), or
+  both with balance sizing, in the account. It halts if it finds a position or
+  working order on those roots that it did not create, or positions in more than
+  one contract other than one NQ and one MNQ of the same month.
 
 ## Halts
 
@@ -85,7 +135,7 @@ an automatic exit can safely proceed. The executor halts when:
 - an order on the root was not placed by this executor;
 - an order is unacknowledged for 5 s;
 - an exit is rejected;
-- the position exceeds `quantity`;
+- the position exceeds `quantity`, or the size recorded for the trade;
 - the configured account is not managed by the Gateway login.
 
 To resolve a halt, inspect `./follow status`, fix the account (for
@@ -103,7 +153,9 @@ periodic re-authentication remain with the follower.
 
 `./follow check` verifies relay access, signatures, clock skew, the Gateway
 account, positions/orders and what-if margin when the latest target carries a
-contract month. A flat target can omit that month; in that case the preflight
+contract month. With balance sizing it also reports NetLiquidation, each leg's
+NQ/MNQ split at the live NQ quote (or the latest reference price) and the
+largest leg's book margin. A flat target can omit that month; in that case the preflight
 cannot estimate margin, and the executor checks it at entry. The check never
 transmits an executable order (IBKR what-if requests are simulations).
 
@@ -117,8 +169,9 @@ transmits an executable order (IBKR what-if requests are simulations).
 | `token_path`, `journal_path` | — | absolute paths |
 | `ibkr.port`, `ibkr.account`, `ibkr.account_type` | — | `paper` needs a `D…` account, `live` a non-`D` one |
 | `ibkr.client_id` | 71 | keep it fixed: orders can only be modified by the client that placed them |
-| `instrument.root`, `instrument.quantity` | — | `NQ` or `MNQ`, and your size |
-| `risk.max_quantity` | 10 | a cap on `quantity` (at most 100) |
+| `sizing.mode`, `sizing.leverage_fraction` | — | `balance` and `f`, above 0 and at most 1; omit `instrument` |
+| `instrument.root`, `instrument.quantity` | — | without `sizing`: `NQ` or `MNQ`, and your fixed size |
+| `risk.max_quantity` | 10 | a cap on `quantity`, or on each balance order (at most 100) |
 | `risk.max_entry_slippage_points` | 10 | limit-price cap when `reference_price` is present |
 | `risk.max_margin_fraction` | 0.5 | initial margin after entry ÷ equity |
 | `risk.max_stop_risk_usd` | null | optional ceiling on size × multiplier × stop distance |

@@ -313,3 +313,114 @@ class HealthAdapterTests(unittest.TestCase):
             self.assertTrue(self.broker.health()["reconciled"])
         with patch('follow_executor.ibkr.time.monotonic', return_value=107):
             self.assertFalse(self.broker.health()["reconciled"])
+
+
+class SummaryApp(StubApp):
+    def __init__(self, broker, rows=(), error=None) -> None:
+        super().__init__(broker)
+        self.rows, self.error = None if rows is None else list(rows), error
+
+    def reqAccountSummary(self, request_id, group, tags) -> None:
+        self.calls.append(("reqAccountSummary", request_id, group, tags))
+        if self.error is not None:
+            self.broker.on_error(request_id, *self.error)
+            return
+        if self.rows is None:
+            return
+        wrapper = self.broker._app_wrapper
+        for row in self.rows:
+            wrapper.accountSummary(request_id, *row)
+        wrapper.accountSummaryEnd(request_id)
+
+    def cancelAccountSummary(self, request_id) -> None:
+        self.calls.append(("cancelAccountSummary", request_id))
+
+    def reqPositions(self) -> None:
+        pass
+
+    def reqAllOpenOrders(self) -> None:
+        pass
+
+    def reqExecutions(self, request_id, execution_filter) -> None:
+        self.calls.append(("reqExecutions", execution_filter.symbol))
+
+    def reqMarketDataType(self, data_type) -> None:
+        pass
+
+    def reqMktData(self, *args) -> None:
+        pass
+
+
+@unittest.skipIf(Contract is None, "ibapi is not installed")
+class BookAdapterTests(unittest.TestCase):
+    def make(self, roots=("NQ", "MNQ"), **app):
+        from follow_executor.ibkr import IBKRBroker
+
+        broker = IBKRBroker(SETTINGS, roots)
+        broker._app_wrapper = broker._app
+        broker._app = SummaryApp(broker, **app)
+        broker._ready.set()
+        broker._next_id = 10
+        return broker
+
+    def test_a_book_keeps_both_roots_and_nothing_else(self) -> None:
+        broker = self.make()
+        nq = ib_contract("NQ", 2026122)
+        nq.multiplier = "20"
+        broker.on_position(ACCOUNT, nq, 1.0, 420000.0)
+        broker.on_position(ACCOUNT, ib_contract("MNQ", 2026121), 7.0, 42000.0)
+        broker.on_position(ACCOUNT, ib_contract("ES", 99), 1.0, 1.0)
+        broker.on_open_order(5, nq, ib_order(), ib_state())
+        broker.on_open_order(6, ib_contract("ES", 99), ib_order(), ib_state())
+        state = broker.state()
+        self.assertEqual(state.positions, {2026122: 1, 2026121: 7})
+        self.assertEqual(state.average_prices, {2026122: 21000.0, 2026121: 21000.0})
+        self.assertEqual(set(state.orders), {5})
+        broker.refresh()
+        self.assertIn(("reqExecutions", ""), broker._app.calls)
+        single = self.make("MNQ")
+        single.refresh()
+        self.assertIn(("reqExecutions", "MNQ"), single._app.calls)
+
+    def test_net_liquidation_is_the_configured_accounts_usd_value(self) -> None:
+        broker = self.make(rows=[("DU0000001", "NetLiquidation", "9", "USD"),
+                                 (ACCOUNT, "NetLiquidation", "251234.56", "USD")])
+        self.assertEqual(broker.net_liquidation(), 251234.56)
+        self.assertEqual([call[0] for call in broker._app.calls],
+                         ["reqAccountSummary", "cancelAccountSummary"])
+        self.assertEqual(broker._app.calls[0][2:], ("All", "NetLiquidation"))
+
+    def test_net_liquidation_refuses_other_currencies_missing_rows_and_errors(self) -> None:
+        cases = [({"rows": [(ACCOUNT, "NetLiquidation", "100000", "EUR")]}, "EUR"),
+                 ({"rows": [(ACCOUNT, "NetLiquidation", "0", "USD")]}, "unavailable"),
+                 ({"rows": []}, "not reported"),
+                 ({"error": (321, "summary refused")}, "refused"),
+                 ({"rows": None}, "timed out")]
+        for app, message in cases:
+            with self.subTest(message=message), self.assertRaisesRegex(RuntimeError, message):
+                self.make(**app).net_liquidation()
+
+    def test_what_if_reports_margin_before_when_ibkr_supplies_it(self) -> None:
+        broker = self.make()
+        broker._app.what_if_state = ib_state("PreSubmitted", initMarginBefore="1000.5",
+                                             initMarginAfter="3000.5", equityWithLoanAfter="100000")
+        estimate = broker.what_if(OrderRequest("entry", contract(root="NQ"), "BUY", "MKT", 1, "fx:whatif:0"))
+        self.assertEqual(estimate.init_margin_before, 1000.5)
+        broker._app.what_if_state = ib_state("PreSubmitted", initMarginBefore="1.7976931348623157E308",
+                                             initMarginAfter="3000.5", equityWithLoanAfter="100000")
+        estimate = broker.what_if(OrderRequest("entry", contract(root="NQ"), "BUY", "MKT", 1, "fx:whatif:0"))
+        self.assertIsNone(estimate.init_margin_before)
+
+    def test_quote_price_is_live_last_or_midpoint_for_previews(self) -> None:
+        broker = self.make()
+        nq = contract(root="NQ")
+        broker.monitor_market_data([nq])
+        (request_id,) = broker._market_requests
+        self.assertIsNone(broker.quote_price(nq.con_id))
+        broker.on_tick_price(request_id, 1, 20999.75)
+        broker.on_tick_price(request_id, 2, 21000.25)
+        self.assertIsNone(broker.quote_price(nq.con_id))  # not yet confirmed live
+        broker.on_market_data_type(request_id, 1)
+        self.assertEqual(broker.quote_price(nq.con_id), 21000.0)
+        broker.on_tick_price(request_id, 4, 21001.0)
+        self.assertEqual(broker.quote_price(nq.con_id), 21001.0)

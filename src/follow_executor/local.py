@@ -56,7 +56,7 @@ def private_write(path: Path, contents: str) -> None:
 
 
 def settings_identity(config: ExecutorConfig) -> str:
-    return json.dumps({
+    identity = {
         "account": config.ibkr.account,
         "account_type": config.ibkr.account_type,
         "client_id": config.ibkr.client_id,
@@ -66,7 +66,13 @@ def settings_identity(config: ExecutorConfig) -> str:
         "quantity": config.quantity,
         "stream": config.stream,
         "leader_public_key": config.leader_public_key,
-    }, sort_keys=True)
+    }
+    # A fixed-quantity identity stays byte-identical to earlier releases' journals.
+    if config.sizing is not None:
+        identity.update(root="+".join(config.roots), quantity=None,
+                        sizing={"mode": config.sizing.mode,
+                                "leverage_fraction": config.sizing.leverage_fraction})
+    return json.dumps(identity, sort_keys=True)
 
 
 def bind_settings(journal, config: ExecutorConfig) -> None:

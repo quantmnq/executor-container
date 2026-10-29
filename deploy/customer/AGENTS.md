@@ -44,8 +44,15 @@ when needed, not a mandatory reason to change settings.
 - For Discord linking, show the bundled #bot-setup screenshot before the customer
   submits AQ Bot's `/link`. Explain that the example code is a placeholder; the
   customer enters their own code directly in Discord.
-- Start with paper trading. Get explicit agreement to the verified mode, root and
-  quantity before the first trading start. Do not automate LIVE confirmations.
+- Sizing (0.3.0): the wizard asks for a leverage fraction above 0 and at most 1
+  (1 = the leader's full 6x balance sizing, trading NQ plus an MNQ remainder),
+  or a fixed MNQ/NQ quantity. The customer chooses; explain it and show the
+  preview and readiness-check split. Do not raise risk limits for them.
+- Existing 0.2.0 installations: follow `docs/UPGRADE.md` (or its Chinese
+  counterpart) while stopped and flat; never reinstall over them.
+- Start with paper trading. Get explicit agreement to the verified mode and size
+  (`BALANCE f` with its per-leg split, or the fixed root and quantity) before the
+  first trading start. Do not automate LIVE confirmations.
 - Do not stop active trading, reset journals, change risk checks
   or operate provider services to complete installation.
 - Report actual results and unfinished steps; do not claim unobserved trading tests.

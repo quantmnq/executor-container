@@ -17,6 +17,24 @@ from .local import exclusive, private_write
 from .maintenance_state import backup_journal, journal_snapshot
 from .release import verify_release
 
+# Reviewed migrations: earlier releases whose configuration and journal this
+# release reads unchanged, identified by their config/local bytecode digests.
+# Journal and Gateway code must still match exactly. A rollback to one of them
+# is allowed only while the configuration uses a fixed quantity it can read.
+REVIEWED_MIGRATIONS = {
+    "0.2.0": {"config": "082d4d0991e45ae8ba10b34adca27e360ff6b6d9ace5d700492d61dacf2ed927",
+              "local": "5caf3387243751845e6bbb60337fbbbd2d8062cd16a0783996cc26628af51ad4"},
+}
+SHARED_MODULES = ("journal", "gateway", "gateway_docker")
+
+
+def reviewed_migration(source: dict, target: dict, *, rollback: bool) -> bool:
+    """True for a reviewed switch between this release and an older one."""
+    older = target if rollback else source
+    return (all(source[module] == target[module] for module in SHARED_MODULES)
+            and any(all(older[module] == digest for module, digest in known.items())
+                    for known in REVIEWED_MIGRATIONS.values()))
+
 
 def record_path(wizard):
     return wizard.state / "maintenance.json"
@@ -110,9 +128,14 @@ def switch(wizard, source_path: Path | None = None, *, rollback: bool = False) -
     if source.release == target.release:
         raise ConfigError("Keep the new and retained releases in separate permanent directories.")
     source_meta, target_meta = verify_release(source.release), verify_release(target.release)
-    if source_meta["compatibility"] != target_meta["compatibility"]:
+    migrating = source_meta["compatibility"] != target_meta["compatibility"]
+    if migrating and not reviewed_migration(source_meta["compatibility"], target_meta["compatibility"],
+                                            rollback=rollback):
         raise ConfigError("Journal/configuration or Gateway compatibility differs. This update needs a separately "
                           "reviewed migration; automatic switching is refused.")
+    if migrating and rollback and source.current_config().sizing is not None:
+        raise ConfigError("The retained release cannot read balance sizing. While flat, choose a fixed size with "
+                          "'./follow-stack settings --root MNQ --quantity 1', then roll back.")
     source.require_gateway_ownership()
     source.require_idle()
     if not source.pin.exists() or source.pin.read_text().strip() != source_meta["executor_image"]["id"]:
@@ -129,7 +152,7 @@ def switch(wizard, source_path: Path | None = None, *, rollback: bool = False) -
     verb = "ROLLBACK" if rollback else "UPGRADE"
     print(f"{verb}: {source_meta['executor_image']['id'][:19]} -> {target_meta['executor_image']['id'][:19]}")
     print("After a read-only flat-account check, Gateway will stop and both services will remain stopped.")
-    confirmation = f"{verb} {current.ibkr.account_type.upper()} {current.quantity} {current.root}"
+    confirmation = f"{verb} {current.ibkr.account_type.upper()} {current.size_label}"
     if input(f"Type {confirmation} to continue: ").strip() != confirmation:
         return 3
     report = wizard.maintenance_report(wizard.image_metadata()["id"])

@@ -4,8 +4,9 @@
 
 Install the official ``ibapi`` from the TWS API download, matching IB Gateway.
 The adapter keeps a callback-fed copy of positions, orders,
-executions and rejections for one futures root in one account, so the
-executor reads its state without a broker round trip.
+executions and rejections for the executor's futures roots (one, or NQ and
+MNQ with balance sizing) in one account, so the executor reads its state
+without a broker round trip.
 """
 
 from __future__ import annotations
@@ -72,7 +73,7 @@ class IBKRBroker:
     def __init__(
         self,
         settings: IBKRSettings,
-        root: str,
+        root: str | tuple[str, ...],
         *,
         on_update: Callable[[], None] | None = None,
     ) -> None:
@@ -85,7 +86,8 @@ class IBKRBroker:
                 "the TWS API release that matches IB Gateway"
             ) from exc
         self.settings = settings
-        self.root = root
+        self.roots = (root,) if isinstance(root, str) else tuple(root)
+        self.root = self.roots[0]
         self._on_update = on_update or (lambda: None)
         self._lock = threading.RLock()
         self._ready = threading.Event()
@@ -117,6 +119,7 @@ class IBKRBroker:
         self._detail_events: dict[int, threading.Event] = {}
         self._request_errors: dict[int, str] = {}
         self._what_if: dict[int, tuple[threading.Event, list[Any]]] = {}
+        self._summaries: dict[int, tuple[threading.Event, list[Any]]] = {}
         owner = self
 
         class App(EWrapper, EClient):  # type: ignore[misc, valid-type]
@@ -167,6 +170,17 @@ class IBKRBroker:
 
             def contractDetails(self, reqId: int, contractDetails: Any) -> None:
                 owner._details.setdefault(reqId, []).append(contractDetails)
+
+            def accountSummary(self, reqId: int, account: str, tag: str, value: str,
+                               currency: str) -> None:
+                pending = owner._summaries.get(reqId)
+                if pending is not None:
+                    pending[1].append((account, tag, value, currency))
+
+            def accountSummaryEnd(self, reqId: int) -> None:
+                pending = owner._summaries.get(reqId)
+                if pending is not None:
+                    pending[0].set()
 
             def contractDetailsEnd(self, reqId: int) -> None:
                 event = owner._detail_events.get(reqId)
@@ -242,7 +256,8 @@ class IBKRBroker:
         execution_filter = ExecutionFilter()
         execution_filter.acctCode = self.settings.account
         execution_filter.secType = "FUT"
-        execution_filter.symbol = self.root
+        # One root filters at the broker; a book filters each callback by root.
+        execution_filter.symbol = self.root if len(self.roots) == 1 else ""
         self._execution_request_id = next(self._request_ids)
         self._app.reqExecutions(self._execution_request_id, execution_filter)
 
@@ -302,6 +317,7 @@ class IBKRBroker:
                 return
             if tick_type in {1, 2, 4}:  # bid, ask or last; ignore close/invalid quotes
                 item["quote"] = True
+                item.setdefault("prices", {})[tick_type] = float(price)
                 if item["live"]:
                     item["status"] = "ready"
             elif tick_type in {66, 67, 68}:
@@ -327,6 +343,19 @@ class IBKRBroker:
                                if value in statuses), "ready")
             return {"connected": connected, "reconciled": connected and self._reconciled,
                     "market_data": market}
+
+    def quote_price(self, con_id: int) -> float | None:
+        """Latest live last price, else bid/ask midpoint: size previews only, never orders."""
+        with self._lock:
+            for item in self._market_requests.values():
+                prices = item.get("prices", {})
+                if item["contract"].con_id != con_id or not item["live"] or not prices:
+                    continue
+                if 4 in prices:
+                    return prices[4]
+                if 1 in prices and 2 in prices:
+                    return (prices[1] + prices[2]) / 2
+        return None
 
     def market_data_errors(self) -> list[int]:
         """Return diagnostic codes only; never expose raw broker messages."""
@@ -407,7 +436,39 @@ class IBKRBroker:
         equity_after = _amount(state.equityWithLoanAfter)
         if init_after is None or equity_after is None:
             raise IBKRError("the what-if response carries no margin figures")
-        return MarginEstimate(init_after, equity_after, str(getattr(state, "warningText", "") or ""))
+        return MarginEstimate(init_after, equity_after, str(getattr(state, "warningText", "") or ""),
+                              _amount(getattr(state, "initMarginBefore", None)))
+
+    def net_liquidation(self) -> float:
+        if not self.is_connected:
+            raise ConnectionError("IBKR is not connected")
+        request_id = next(self._request_ids)
+        event = threading.Event()
+        rows: list[Any] = []
+        self._summaries[request_id] = (event, rows)
+        try:
+            self._app.reqAccountSummary(request_id, "All", "NetLiquidation")
+            if not event.wait(self.settings.timeout_seconds):
+                raise IBKRError("timed out waiting for NetLiquidation")
+        finally:
+            self._summaries.pop(request_id, None)
+            try:
+                self._app.cancelAccountSummary(request_id)
+            except Exception as exc:  # noqa: BLE001 - the summary request is finished either way
+                LOGGER.debug("account summary cancel failed: %s", exc)
+        for row in rows:
+            if isinstance(row, str):
+                raise IBKRError(row)
+        for account, tag, value, currency in rows:
+            if account != self.settings.account or tag != "NetLiquidation":
+                continue
+            if currency != "USD":
+                raise IBKRError(f"NetLiquidation is reported in {currency}, not USD")
+            amount = _amount(value)
+            if amount is None or amount <= 0:
+                raise IBKRError("NetLiquidation is unavailable")
+            return amount
+        raise IBKRError("NetLiquidation was not reported for the configured account")
 
     def state(self) -> BrokerState:
         with self._lock:
@@ -427,7 +488,7 @@ class IBKRBroker:
     # Callbacks (IBKR reader thread; also called directly by tests) -----------
 
     def on_position(self, account: str, contract: Any, position: Any, average_cost: float) -> None:
-        if account != self.settings.account or contract.secType != "FUT" or contract.symbol != self.root:
+        if account != self.settings.account or contract.secType != "FUT" or contract.symbol not in self.roots:
             return
         future = self._future(contract)
         with self._lock:
@@ -446,7 +507,7 @@ class IBKRBroker:
                 pending[1].append(order_state)
                 pending[0].set()
             return
-        if contract.symbol != self.root or contract.secType != "FUT":
+        if contract.symbol not in self.roots or contract.secType != "FUT":
             return
         if order.account and order.account != self.settings.account:
             return
@@ -492,7 +553,7 @@ class IBKRBroker:
         self._on_update()
 
     def on_execution(self, contract: Any, execution: Any) -> None:
-        if contract.symbol != self.root or execution.acctNumber != self.settings.account:
+        if contract.symbol not in self.roots or execution.acctNumber != self.settings.account:
             return
         item = Execution(
             exec_id=str(execution.execId),
@@ -536,6 +597,11 @@ class IBKRBroker:
         if request_id in self._what_if:
             event, holder = self._what_if[request_id]
             holder.append(f"what-if rejected ({code}): {message}")
+            event.set()
+            return
+        if request_id in self._summaries:
+            event, holder = self._summaries[request_id]
+            holder.append(f"account summary refused ({code}): {message}")
             event.set()
             return
         if request_id in self._detail_events:

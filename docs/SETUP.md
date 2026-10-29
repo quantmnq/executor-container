@@ -3,7 +3,7 @@
 English | [简体中文](SETUP.zh-CN.md)
 
 This guide installs **both Gateway and the Auto Quant executor in containers**
-using the `follow-stack-0.2.0-ubuntu24.04-arm64-cp312.tar.gz` kit. Start with an
+using the `follow-stack-0.3.0-ubuntu24.04-arm64-cp312.tar.gz` kit. Start with an
 IBKR **paper account**, which simulates trading. Use **Codex or Claude Code** to
 guide setup from scratch: [open the package and paste this prompt](../START_HERE.md).
 You do not need to write code, use GitHub or build an image.
@@ -60,14 +60,14 @@ also contains the complete commands for manual use.
 
 | Item | What to do with it |
 | --- | --- |
-| `follow-stack-0.2.0-ubuntu24.04-arm64-cp312.tar.gz` | Save in your laptop's **Downloads** folder; leave it compressed. |
+| `follow-stack-0.3.0-ubuntu24.04-arm64-cp312.tar.gz` | Save in your laptop's **Downloads** folder; leave it compressed. |
 | Matching `.tar.gz.sha256` file | Save beside it. This lets Ubuntu verify the download. |
 | Personal relay token | Keep private; enter it into the wizard later. It connects you to the signal service. |
 | Expected provider public-key fingerprint | Keep for comparison with readiness results. This identifies the signal provider. |
 | Support contact and optional Discord invitation | Use the contact supplied with your customer download. |
 
 Get both download files from Auto Quant's trusted channel. Discord may supply the
-files or a download link. These examples use **0.2.0**; if your version differs,
+files or a download link. These examples use **0.3.0**; if your version differs,
 use its included guide and matching filenames. Do not mix releases.
 
 First complete [IBKR account and secondary-login preparation](IBKR_ACCOUNT_SETUP.md):
@@ -180,14 +180,14 @@ Replace the IP placeholder, then paste the next command as **one line**. `scp`
 means secure file copy; keep the colon and `Downloads/` at the end.
 
 ```bash
-scp -i ./auto-quant.key follow-stack-0.2.0-ubuntu24.04-arm64-cp312.tar.gz follow-stack-0.2.0-ubuntu24.04-arm64-cp312.tar.gz.sha256 ubuntu@YOUR_OCI_PUBLIC_IP:Downloads/
+scp -i ./auto-quant.key follow-stack-0.3.0-ubuntu24.04-arm64-cp312.tar.gz follow-stack-0.3.0-ubuntu24.04-arm64-cp312.tar.gz.sha256 ubuntu@YOUR_OCI_PUBLIC_IP:Downloads/
 ```
 
 Wait for both transfers. **Back in Window A — Ubuntu**, run one line at a time:
 
 ```bash
 cd ~/Downloads
-sha256sum -c follow-stack-0.2.0-ubuntu24.04-arm64-cp312.tar.gz.sha256
+sha256sum -c follow-stack-0.3.0-ubuntu24.04-arm64-cp312.tar.gz.sha256
 ```
 
 **Checkpoint:** the archive's filename ends with **`OK`**. If you see `FAILED`,
@@ -197,8 +197,8 @@ or install a failed download.
 Extract into a permanent version folder in your Ubuntu home directory:
 
 ```bash
-tar -xzf follow-stack-0.2.0-ubuntu24.04-arm64-cp312.tar.gz -C ~
-cd ~/follow-stack-0.2.0-ubuntu24.04-arm64-cp312
+tar -xzf follow-stack-0.3.0-ubuntu24.04-arm64-cp312.tar.gz -C ~
+cd ~/follow-stack-0.3.0-ubuntu24.04-arm64-cp312
 ```
 
 No output from `tar` or `cd` is normal. Keep this extracted folder at this path;
@@ -249,7 +249,7 @@ ssh -i ./auto-quant.key ubuntu@YOUR_OCI_PUBLIC_IP
 **Once the Ubuntu prompt returns**, resume from the same folder:
 
 ```bash
-cd ~/follow-stack-0.2.0-ubuntu24.04-arm64-cp312
+cd ~/follow-stack-0.3.0-ubuntu24.04-arm64-cp312
 ./follow-stack setup
 ```
 
@@ -268,13 +268,20 @@ At **`3/5 Account and personal relay access`**:
 | --- | --- |
 | Account mode `[paper]` | Press Enter for paper trading. |
 | IBKR account ID | Your paper account ID, not the username. |
-| Instrument `[MNQ]` | Press Enter if MNQ is your intended instrument. |
-| Number of contracts (1–10) `[1]` | Press Enter if one contract is your intended paper size. |
+| Sizing `[balance]` | Press Enter for balance sizing: NQ plus an MNQ remainder, sized from your account balance at each new entry. Type `MNQ` or `NQ` instead for a fixed number of one contract. |
+| Leverage fraction of the leader's 6x band | Type your chosen number above 0 and at most 1, for example `0.5`. `1` follows the leader's full size; `0.5` is half. |
+| Your current IBKR NetLiquidation in USD, for a size preview `(Enter to skip)` | Optional: your paper account's approximate balance, to preview sizes. Nothing is saved. |
+| Approximate current NQ price, for the preview `(Enter to skip)` | Optional: for example `21000`. |
+| Number of contracts (1–10) `[1]` | Asked only for a fixed `MNQ`/`NQ` size. |
 | Personal relay token `(hidden)` | Paste the private token from Auto Quant and press Enter. Nothing may appear while typing. |
 
-MNQ and NQ are different futures contracts; NQ has a larger contract value.
-If uncertain, pause and confirm your choice with Auto Quant. This walkthrough
-uses **paper, 1 MNQ**. Existing saved settings are reused; review what the wizard
+With balance sizing the preview shows each leg's split, for example
+`1 NQ + 7 MNQ` for the largest legs and `7 MNQ` for the smallest. A leg marked
+`no entry` rounds to 0 contracts at that balance and is skipped; the readiness
+check later shows it again from your real IBKR balance. MNQ and NQ are
+different futures contracts; one NQ equals ten MNQ. If uncertain, pause and
+confirm your choice with Auto Quant. This walkthrough uses **paper, balance
+sizing at 0.5**. Existing saved settings are reused; review what the wizard
 actually reports. It has not started trading.
 
 <a id="gateway"></a>
@@ -315,7 +322,8 @@ for the selected contract.`** Here “live quote” means current market data;
 it does **not** mean the account has switched to live trading.
 
 Compare `leader_key_id` with the expected fingerprint from Auto Quant. Verify
-paper mode, your account, instrument and quantity. If checks fail, use
+paper mode, your account and size: with balance sizing, the `sizing` section's
+NetLiquidation, leverage fraction and each leg's NQ/MNQ split. If checks fail, use
 [help](#help); do not start trading to work around a failed check.
 
 <a id="gateway-api"></a>
@@ -400,7 +408,7 @@ When you choose to start, first run in **Window A — Ubuntu**:
 ```
 
 Require successful readiness, including quotes, the expected provider fingerprint
-and **your intended paper mode, instrument and quantity**. Investigate any listed
+and **your intended paper mode and size**. Investigate any listed
 problem. Readiness can request margin estimates; it does not place executable orders.
 
 Read [how the executor protects positions](EXECUTOR.md) before starting. This
@@ -417,8 +425,9 @@ after a VM reboot. If that is what you intend:
 ./follow-stack start
 ```
 
-Read the settings shown. For **paper, 1 MNQ**, the confirmation is
-`START PAPER 1 MNQ`. Type it only if it matches your intended setup. If the prompt
+Read the settings shown. For **paper, balance sizing at 0.5**, the confirmation
+is `START PAPER BALANCE 0.5` (a fixed size reads like `START PAPER 1 MNQ`).
+Type it only if it matches your intended setup. If the prompt
 shows `LIVE` or a different size, do not confirm; ask for help with the settings.
 The confirmation uses the actual saved configuration, not this guide's example.
 
@@ -440,7 +449,7 @@ Each new SSH session starts outside the release folder. Connect as in step 2,
 then run:
 
 ```bash
-cd ~/follow-stack-0.2.0-ubuntu24.04-arm64-cp312
+cd ~/follow-stack-0.3.0-ubuntu24.04-arm64-cp312
 ```
 
 | What you want | Command / action |
@@ -473,6 +482,10 @@ Contact Auto Quant before your first update. Keep the old release directory,
 configuration, Gateway data and trading journal. Do not delete state to “start
 fresh.” Native installations need a reviewed migration; this fresh-install guide
 is not a migration procedure.
+
+**Updating from 0.2.0 to 0.3.0?** Follow the [upgrade guide](UPGRADE.md). It
+keeps your journal and token, installs the new kit, asks for your leverage
+fraction and regenerates the service.
 
 For compatible container releases, use the stopped-and-flat procedure in the
 [container maintenance reference](CONTAINER_SETUP.md). An upgrade does not itself

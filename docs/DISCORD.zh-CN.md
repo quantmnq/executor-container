@@ -53,6 +53,8 @@ IBKR execution time: 2026-10-14 14:45:00 EDT
 
 盈亏按每个合约记录的入场和平仓成交计算：[MNQ 每点 2 美元](https://www.cmegroup.com/markets/equities/nasdaq/micro-e-mini-nasdaq-100.contractSpecs.html)，[NQ 每点 20 美元](https://www.cmegroup.com/education/courses/introduction-to-equity-index-products/discover-equity-index-notional-value-and-price)。正数为盈利，负数为亏损，`$0.00` 为盈亏平衡，均未扣佣金和费用。这是执行器根据其交易记录计算的毛盈亏，不是 IBKR 账户净盈亏，也不包含与本执行器无关的交易。缺少入场记录时会明确标注盈亏不可用，不会猜测。
 
+使用余额仓位时，一笔交易可能同时持有 NQ 和 MNQ 余数，例如 **1 NQ + 5 MNQ**。每种合约各自计算一轮交易，因此每种合约会分别收到一条消息（`LONG — 1 NQ.` 和 `LONG — 5 MNQ.`），各自显示平均价格、合约，以及按每点 20 美元或 2 美元计算的盈亏。两条消息合起来即为整个组合；`./follow-stack status` 会显示为 `"book": "1 NQ + 5 MNQ"`。
+
 分批入场或平仓可能更新 LONG/SHORT 及剩余数量；仅部分平仓不会显示 FLAT。反向交易会先结束上一笔交易，再建立反向持仓。IBKR 成交更正会重新计算受影响交易，并标注 `Correction:`。首次启用或升级会载入历史记录，不会把旧交易当作新交易通知。消息可能延迟，请在 IBKR 核实当前持仓。
 
 消息保留模拟/实盘模式、合约月份（或合约 ID）、券商订单 ID，以及**美国东部时间**的成交执行时间（夏季 EDT，冬季 EST），不再显示 `Observed:` 行。IBKR 时间缺少可用时区时会标注时间不可用，但交易通知仍会发送。

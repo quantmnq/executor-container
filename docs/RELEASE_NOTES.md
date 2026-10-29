@@ -1,12 +1,80 @@
-# Auto Quant 0.2.0 — guided setup with Codex and Claude Code
+# Auto Quant 0.3.0 — balance sizing with NQ + MNQ
 
 English | [简体中文](RELEASE_NOTES.zh-CN.md)
 
-Prepared October 22, 2026 (US Pacific). This release makes Codex or Claude Code
-the main customer setup path from account preparation through a verified paper
-installation. It retains the existing trading engine, pins and protection rules.
+Prepared October 28, 2026 (US Pacific). The leader now sizes each leg from its
+balance (R359 leg weights, R360 balance sizing). Version 0.3.0 lets followers do
+the same at a fraction of the leader's leverage, trading NQ plus an MNQ remainder
+as one book. Dependencies, the Gateway image and the protection rules are retained.
 
-## New in 0.2.0
+## New in 0.3.0
+
+- **Leverage fraction.** Setup asks for `f`, above 0 and at most 1; `1` follows
+  the leader's 6x balance sizing with its 5.88x–6.6x band. The configuration is
+  `"sizing": {"mode": "balance", "leverage_fraction": f}`. The wizard previews
+  each leg's NQ/MNQ split; `check` shows it from IBKR NetLiquidation and the live
+  NQ quote, with the largest leg's book margin.
+- **Sizing at each new flat entry.** Base `floor(6f·E / (2·P))` MNQ units from
+  NetLiquidation `E` and the reference price `P`, then kept, reset or raised
+  one unit at a time inside the signal's band scaled by `f`. Each leg trades
+  `round_half_up(base × weight)` units as NQ plus an MNQ remainder, for example
+  `1 NQ + 7 MNQ`, with no minimum: a leg that rounds to 0 is refused without an
+  order (`size rounds to 0 contracts`), so a base of 1 skips 0.4-weight legs. A
+  missing balance or price reuses the last base; with none, or with a zero base,
+  a signal without `sizing` or an order above `risk.max_quantity`, the entry is
+  refused with a reason. Held positions never
+  resize, including Gap→Drift continuations.
+- **One two-contract book.** Margin and stop risk are checked for the whole book
+  before either order. Each contract has its own stop at the leader's price and
+  follows trailing moves, the 09:24 cancel / 09:25 exit, session-close exits,
+  emergency exits and restart reconciliation. If one contract's stop fills, the
+  other keeps its stop and exits on schedule. Exactly one NQ and one MNQ position
+  of the same month are allowed; any other mix halts.
+- **Signals.** `target.sizing` (leg weight and leverage band) and the Drift exit
+  plan's `minutes_before_open` are documented. Both `next_rth_open` and
+  `before_next_rth_open` are accepted, including for the verified pre-open
+  cancellation exception.
+- **Notifications and status.** Discord receives one position message per
+  contract with its own root and P/L; `status` shows the book, such as
+  `1 NQ + 5 MNQ`. The start confirmation names the size, such as
+  `START PAPER BALANCE 0.5`.
+- **Upgrade.** New bilingual [upgrade guide](UPGRADE.md). `follow-stack upgrade`
+  accepts the reviewed 0.2.0 → 0.3.0 migration (journal and Gateway code
+  unchanged; 0.2.0 settings load as they are). Rolling back requires a fixed size.
+- A configuration without `sizing`, including every 0.2.0 configuration, keeps
+  exact 0.2.0 behavior: one root and the same unweighted quantity.
+
+## Update from 0.2.0
+
+While the whole account is flat: stop the executor from the 0.2.0 directory,
+keeping Gateway logged in and the journal and token in place. Extract the 0.3.0
+kit into a new directory and run `./follow-stack upgrade --from <0.2.0 directory>`,
+which regenerates both services and leaves them stopped. Then `./follow-stack
+gateway start`, `./follow-stack settings` to choose the fraction,
+`./follow-stack check`, and an explicit `./follow-stack start`. Details:
+[UPGRADE.md](UPGRADE.md).
+
+## If you stay on 0.2.0
+
+0.2.0 keeps trading its fixed quantity. It ignores the new `sizing` field, and
+the leader sends `next_rth_open` Drift plans (09:24 cancel, 09:25 exit), so its
+planned pre-open protection stays valid. It does not use leg weights or the
+account balance.
+
+## Validation and scope (0.3.0)
+
+Automated broker fixtures cover the sizing arithmetic and band boundaries, the
+book's entries, margin and stop-risk refusals, per-contract stops and trailing
+moves, one-sided stop fills, pre-open cancellation under both rule names,
+scheduled and emergency exits, halted repairs, restart reconciliation,
+notifications, setup prompts and the reviewed migration. The container suite
+reruns them against the installed bytecode with networking disabled. Balance
+sizing has not yet traded on a real IBKR paper account, and IBKR's
+NetLiquidation and what-if "before" margin figures are read from the documented
+API fields without a broker rehearsal. No account login or order was part of
+this build.
+
+## Retained from 0.2.0
 
 - English/Chinese START_HERE prompts, customer AGENTS.md/CLAUDE.md and generated
   package README guide setup from scratch, with resumable account/cloud checkpoints.
@@ -163,8 +231,8 @@ quotes, relay access, margin and reconciliation.
 
 Start with [Codex or Claude Code](../START_HERE.md) and [the beginner setup guide](SETUP.md); [maintenance and recovery](CONTAINER_SETUP.md)
 remain in the technical reference. Setup leaves trading stopped.
-Review readiness, account mode, instrument and quantity before explicitly running
-`./follow-stack start`.
+Review readiness, account mode and size before explicitly running
+`./follow-stack start`. Existing 0.2.0 installations follow [UPGRADE.md](UPGRADE.md).
 
 Keep releases in separate permanent directories and preserve configuration,
 Gateway data and the trading journal. Existing native installations need a

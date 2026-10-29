@@ -13,6 +13,7 @@ deploy/executor-container/Dockerfile
 deploy/executor-container/build-requirements.lock
 deploy/executor-container/install-api.py
 deploy/executor-container/requirements.lock
+deploy/executor.balance.example.json
 deploy/executor.example.json
 deploy/install-bytecode.sh
 deploy/public-files.txt
@@ -48,6 +49,8 @@ docs/SIGNAL_V1.md
 docs/SIGNAL_V1.zh-CN.md
 docs/SOURCE.md
 docs/SOURCE.zh-CN.md
+docs/UPGRADE.md
+docs/UPGRADE.zh-CN.md
 docs/images/discord-bot-setup-link.png
 docs/images/ib-gateway-api-settings.png
 docs/images/ib-gateway-configure-menu.png
@@ -99,6 +102,7 @@ src/follow_executor/protection.py
 src/follow_executor/release.py
 src/follow_executor/setup.py
 src/follow_executor/signal.py
+src/follow_executor/sizing.py
 src/follow_executor/stack.py
 tests/container/credential_isolation.py
 tests/container/lifecycle.py
@@ -107,6 +111,7 @@ tests/rehearsal/Dockerfile
 tests/rehearsal/README.md
 tests/rehearsal/drive-wizard.py
 tests/rehearsal/maintenance-fixture.py
+tests/test_balance_sizing.py
 tests/test_bytecode_release.py
 tests/test_executor_container.py
 tests/test_executor_contract.py
