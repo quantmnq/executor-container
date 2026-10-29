@@ -16,6 +16,9 @@ HEARTBEAT_SCHEMA = "signal.v1.heartbeat"
 DIRECTIONS = {"flat": 0, "long": 1, "short": -1}
 TICK = 0.25
 CONTRACT_MONTH = re.compile(r"^\d{6}$")
+# Both names mean: cancel the stop at cancel_stop_at, flatten at flatten_at.
+NEXT_OPEN_RULES = frozenset({"next_rth_open", "before_next_rth_open"})
+MAX_LEVERAGE = 20.0
 
 
 class SignalError(ValueError):
@@ -37,6 +40,17 @@ class ExitPlan:
     rule: str
     cancel_stop_at: datetime | None
     flatten_at: datetime | None
+    minutes_before_open: int | None = None
+
+
+@dataclass(frozen=True)
+class Sizing:
+    """The leader's leg weight and leverage band; one unit is one MNQ."""
+
+    weight: float
+    target_leverage: float
+    add_max_leverage: float
+    hold_max_leverage: float
 
 
 @dataclass(frozen=True)
@@ -52,6 +66,7 @@ class Target:
     stop: float | None
     exit_plan: ExitPlan | None
     payload: str
+    sizing: Sizing | None = None
 
     @property
     def direction(self) -> int:
@@ -112,6 +127,31 @@ def _object(value: Any, field: str) -> dict[str, Any] | None:
     if not isinstance(value, dict):
         raise SignalError(f"{field} must be an object or null")
     return value
+
+
+def _sizing(value: Any) -> Sizing | None:
+    """Parse ``target.sizing``. An unusable block only blocks balance-sized entries;
+    it never makes the target's stop or exit plan unreadable."""
+
+    if not isinstance(value, dict):
+        return None
+    numbers = [value.get(key) for key in
+               ("weight", "target_leverage", "add_max_leverage", "hold_max_leverage")]
+    if any(type(number) not in (int, float) or not math.isfinite(number) or number <= 0
+           for number in numbers):
+        return None
+    weight, target, add, hold = (float(number) for number in numbers)
+    if weight > 1 or not add <= target <= hold <= MAX_LEVERAGE:
+        return None
+    return Sizing(weight, target, add, hold)
+
+
+def _minutes(value: Any) -> int | None:
+    if type(value) is int and value >= 0:
+        return value
+    if isinstance(value, str) and value.isdecimal():
+        return int(value)
+    return None
 
 
 def parse_target(payload_text: str, stream: str) -> Target:
@@ -187,9 +227,11 @@ def parse_target(payload_text: str, stream: str) -> Target:
             rule=rule,
             cancel_stop_at=_optional_time(raw_plan.get("cancel_stop_at"), "exit_plan.cancel_stop_at"),
             flatten_at=_optional_time(raw_plan.get("flatten_at"), "exit_plan.flatten_at"),
+            minutes_before_open=_minutes(raw_plan.get("minutes_before_open")),
         )
 
-    return Target(seq, stream, cause, emitted_at, position, leg, month, entry, stop, exit_plan, payload_text)
+    return Target(seq, stream, cause, emitted_at, position, leg, month, entry, stop, exit_plan,
+                  payload_text, _sizing(target.get("sizing")))
 
 
 def parse_heartbeat(payload: dict[str, Any], stream: str) -> Heartbeat:

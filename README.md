@@ -1,8 +1,12 @@
 # Follow Executor
 
 Run the follower on **your own OCI Ampere ARM instance**, connect **your own
-IBKR account**, and choose **MNQ or NQ and your contract quantity**. The executor
+IBKR account**, and choose a **leverage fraction** of the leader's balance
+sizing (NQ plus an MNQ remainder), or a fixed MNQ/NQ quantity. The executor
 receives signed targets from a signal provider and trades at your chosen size.
+
+**Upgrading from 0.2.0?** Follow [UPGRADE.md](docs/UPGRADE.md) /
+[升级指南](docs/UPGRADE.zh-CN.md) while flat.
 
 This repository contains only the follower. A running signal provider and a
 personal relay token are required; cloning the repository does not grant signal
@@ -91,21 +95,23 @@ after reboot and at the scheduled Sunday time; approve any required mobile promp
 VNC remains available for unexpected dialogs. No inbound ports beyond SSH are
 needed. Keep the installation directory at the same path.
 
-## Change MNQ/NQ or quantity later
+## Change sizing later
 
 Wait until the follower is flat, then:
 
 ```bash
 ./follow stop
-./follow settings --root NQ --quantity 1
+./follow settings --leverage-fraction 0.5
 ./follow start
 ```
 
-To change only quantity: `./follow settings --quantity 2`. You can also rerun
-`./follow configure` for interactive changes. Settings take effect on restart
+`./follow settings` without options asks interactively and previews the NQ/MNQ
+split at example weights at your IBKR NetLiquidation. For a fixed size use
+`./follow settings --root NQ --quantity 1`, or `--quantity 2` to change only the
+quantity of a fixed setup. You can also rerun `./follow configure`. Settings take effect on restart
 and future eligible trades; they do not resize an open trade. The command checks
 the journal and complete IBKR snapshots, refuses positions or working orders,
-and checks both roots when switching. Keep Gateway logged in for this check.
+and checks every root involved when switching. Keep Gateway logged in for this check.
 If the change is refused, the old config is retained; resolve the issue and
 restart with the old settings if needed. Never stop during a trade just to
 change settings: stopped executors cannot manage exits.
@@ -122,7 +128,8 @@ change settings: stopped executors cannot manage exits.
 | `./follow watch` | Watch verified signals while stopped; Ctrl-C exits |
 | `./follow resume` | Request recovery from a halt; may adopt/close the broker position |
 
-Use a dedicated account for following and do not manually trade the managed root.
+Use a dedicated account for following and do not manually trade the managed
+roots (both NQ and MNQ with balance sizing).
 `resume` is for deliberate recovery after inspecting the account, not a routine
 restart command. Broker stops can remain after stopping the service, but time
 exits and stop changes require the executor and Gateway to be running.
@@ -143,7 +150,7 @@ strategy profitable. [Execution behavior and recovery](docs/EXECUTOR.md).
 - `~/.local/state/follow-executor/executor.sqlite3`: durable journal; keep it.
 - `~/.config/systemd/user/follow-executor.service`: local service definition.
 
-In container release 0.2.0, the executor cannot access the managed Gateway
+In container release 0.3.0, the executor cannot access the managed Gateway
 credential directory or maintenance backups through its filesystem mounts.
 These paths are obscured by empty read-only mounts in executor commands and
 services; the host controller and Gateway retain their existing files. Setup

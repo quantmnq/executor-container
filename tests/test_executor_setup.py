@@ -49,7 +49,7 @@ class SetupTests(unittest.TestCase):
 
     def test_paper_setup_is_private_and_does_not_connect_or_trade(self):
         with patch('follow_executor.ibkr.IBKRBroker') as broker:
-            code, output = self.call('configure', answers=['', 'DU1234567', '', ''])
+            code, output = self.call('configure', answers=['', 'DU1234567', 'MNQ', ''])
         self.assertEqual(code, 0, output)
         broker.assert_not_called()
         config = load_config(self.path)
@@ -161,6 +161,91 @@ class SetupTests(unittest.TestCase):
         with patch('follow_executor.setup.require_flat'):
             code, output = self.call('settings', '--quantity', str(config.quantity + 1))
         self.assertEqual(code, 0, output)
+
+
+    def test_balance_setup_validates_the_fraction_and_previews_example_weights(self):
+        code, output = self.call('configure', answers=[
+            'paper', 'DU1234567', 'balance', '0', '1.5', 'half', '0.5', '250,000', '21000'])
+        self.assertEqual(code, 0, output)
+        config = load_config(self.path)
+        self.assertEqual((config.sizing.mode, config.sizing.leverage_fraction), ('balance', 0.5))
+        self.assertEqual(config.roots, ('NQ', 'MNQ'))
+        self.assertNotIn('instrument', json.loads(self.path.read_text()))
+        self.assertEqual(output.count('Enter a number above 0 and at most 1'), 3)
+        for line in ('base: 17 MNQ units', 'weight 1    -> 1 NQ + 7 MNQ', 'weight 0.75 -> 1 NQ + 3 MNQ',
+                     'weight 0.25 -> 4 MNQ'):
+            self.assertIn(line, output)
+        self.assertIn('Saved NQ + MNQ balance sizing at leverage fraction 0.5 in paper mode', output)
+
+    def test_balance_is_the_default_and_the_preview_can_be_skipped(self):
+        code, output = self.call('configure', answers=['', 'DU1234567', '', '1', ''])
+        self.assertEqual(code, 0, output)
+        self.assertEqual(load_config(self.path).sizing.leverage_fraction, 1.0)
+        self.assertIn('Preview skipped', output)
+
+    def test_settings_switch_between_fixed_and_balance_while_flat(self):
+        old = self.configured()
+        journal = Journal(old.journal_path)
+        journal.mark_trade('already-finished', 'closed', 'test')
+        journal.close()
+        with patch('follow_executor.setup.require_flat', return_value=250_000.0) as flat:
+            code, output = self.call('settings', '--leverage-fraction', '0.25')
+        self.assertEqual(code, 0, output)
+        self.assertEqual([c.args[0].roots for c in flat.call_args_list], [('MNQ',), ('NQ', 'MNQ')])
+        config = load_config(self.path)
+        self.assertEqual(config.sizing.leverage_fraction, 0.25)
+        journal = Journal(config.journal_path)
+        self.addCleanup(journal.close)
+        bind_settings(journal, config)
+        self.assertEqual(journal.trade_status('already-finished'), 'closed')
+        with patch('follow_executor.setup.require_flat'):
+            code, output = self.call('settings', '--quantity', '3')
+        self.assertEqual(code, 2, output)
+        self.assertIn('needs both --root and --quantity', output)
+        with patch('follow_executor.setup.require_flat'):
+            code, output = self.call('settings', '--root', 'MNQ', '--quantity', '1')
+        self.assertEqual(code, 0, output)
+        config = load_config(self.path)
+        self.assertEqual((config.sizing, config.root, config.quantity), (None, 'MNQ', 1))
+
+    def test_interactive_settings_asks_for_the_fraction_with_an_ibkr_balance_preview(self):
+        self.configured()
+        with patch('follow_executor.setup.require_flat', return_value=250_000.0):
+            code, output = self.call('settings', answers=['balance', '2', '0.5', '21000'])
+        self.assertEqual(code, 0, output)
+        self.assertIn('IBKR NetLiquidation: $250,000.00', output)
+        self.assertIn('1 NQ + 7 MNQ', output)
+        self.assertEqual(load_config(self.path).sizing.leverage_fraction, 0.5)
+        with patch('follow_executor.setup.require_flat', return_value=250_000.0):
+            code, output = self.call('settings', answers=['', '', ''])
+        self.assertEqual(code, 0, output)
+        self.assertIn('Already configured for NQ + MNQ balance sizing at leverage fraction 0.5', output)
+
+    def test_invalid_fraction_options_never_contact_the_broker(self):
+        self.configured()
+        for args in (('--leverage-fraction', '0'), ('--leverage-fraction', '1.2'),
+                     ('--leverage-fraction', '0.5', '--root', 'NQ')):
+            with self.subTest(args=args), patch('follow_executor.setup.require_flat') as flat, \
+                    self.assertRaises(SystemExit):
+                self.call('settings', *args)
+            flat.assert_not_called()
+
+    def test_require_flat_checks_both_book_roots_and_reports_net_liquidation(self):
+        config = self.configured()
+        raw = json.loads(self.path.read_text())
+        raw.pop('instrument')
+        raw['sizing'] = {'mode': 'balance', 'leverage_fraction': 0.5}
+        self.path.write_text(json.dumps(raw))
+        balance = load_config(self.path)
+        broker = Mock(managed_accounts=(config.ibkr.account,))
+        broker.state.return_value = Mock(positions={}, orders={})
+        broker.net_liquidation.return_value = 123_456.0
+        with patch('follow_executor.ibkr.IBKRBroker', return_value=broker) as factory:
+            self.assertEqual(require_flat(balance), 123_456.0)
+        self.assertEqual(factory.call_args.args[1], ('NQ', 'MNQ'))
+        broker.net_liquidation.side_effect = RuntimeError('summary unavailable')
+        with patch('follow_executor.ibkr.IBKRBroker', return_value=broker):
+            self.assertIsNone(require_flat(balance))
 
 
 class BrokerSnapshotTests(unittest.TestCase):

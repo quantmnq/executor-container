@@ -28,6 +28,7 @@ TAG = "cp312-none-any"
 CUSTOMER_DOCS = (
     "IBKR_ACCOUNT_SETUP",
     "AGENT_SETUP", "SETUP", "SETUP_NATIVE", "IBC", "GATEWAY_DOCKER", "EXECUTOR_DOCKER", "CONTAINER_SETUP", "DISCORD", "EXECUTOR", "OCI_ARM", "OPERATIONS", "SIGNAL_V1", "RELEASE_NOTES", "SOURCE", "RELEASING",
+    "UPGRADE",
 )
 CUSTOMER_IMAGES = (
     "ib-gateway-configure-menu.png", "ib-gateway-api-settings.png",
@@ -197,8 +198,13 @@ def build(output: Path, *, executor_image: dict | None = None, image_archive: Pa
             "CME Real-Time (L1), listed at $1.55/month, and confirm IBKR's current recurring fee.\n\n"
             "Verify the archive checksum, extract it into a permanent\n"
             "directory on Ubuntu, and run `./follow-stack setup` in your own terminal.\n"
-            "The wizard resumes saved steps and never starts trading. After readiness checks, review\n"
-            "your mode and size and explicitly run `./follow-stack start`.\n\n"
+            "The wizard resumes saved steps and never starts trading. It asks for a leverage\n"
+            "fraction (above 0, at most 1) of the leader's 6x band and previews the\n"
+            "NQ + MNQ split. After readiness checks, review your mode and size and explicitly\n"
+            "run `./follow-stack start`.\n\n"
+            "Updating an existing 0.2.0 installation? Follow the upgrade guide while flat:\n"
+            "- [Upgrade from 0.2.0](docs/UPGRADE.md)\n"
+            "- [从 0.2.0 升级](docs/UPGRADE.zh-CN.md)\n\n"
             "- [Container maintenance and recovery reference](docs/CONTAINER_SETUP.md)\n"
             "- [中文容器维护与恢复参考](docs/CONTAINER_SETUP.zh-CN.md)\n\n"
             "- [Release notes and validation scope](docs/RELEASE_NOTES.md)\n"

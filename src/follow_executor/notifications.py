@@ -140,7 +140,12 @@ class Notifications:
         if revision == self._positions_revision:
             return revision
         initial = not self._get("positions_initialized")
-        summaries = positions(journal.notification_executions(), journal.notification_orders(), self.config.root)
+        # A balance book reports each contract separately, e.g. LONG 1 NQ and LONG 5 MNQ.
+        roots = {int(con_id): root for con_id, root in
+                 json.loads(journal.get_state("contract_roots") or "{}").items()}
+        roots.update({con_id: contract.root for con_id, contract in state.contracts.items()})
+        summaries = positions(journal.notification_executions(), journal.notification_orders(),
+                              self.config.root, roots)
         for key, summary in summaries.items():
             previous = self._get(key)
             if previous == summary:
@@ -155,7 +160,8 @@ class Notifications:
             body = dict(summary["event"])
             contract = state.contracts.get(body["con_id"])
             body.update(kind="position", corrected=corrected,
-                        account_type=self.config.ibkr.account_type, root=self.config.root,
+                        account_type=self.config.ibkr.account_type,
+                        root=roots.get(body["con_id"], self.config.root),
                         contract_month=contract.contract_month if contract else None,
                         occurred_at=now.isoformat())
             if not body.get("broker_time"):

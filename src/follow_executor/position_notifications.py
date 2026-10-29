@@ -13,15 +13,17 @@ def fill_identity(exec_id):
     return base if corrected else exec_id
 
 
-def positions(executions, orders, root):
+def positions(executions, orders, root, roots=None):
     """Return each round trip's latest state, including corrected closed trades.
 
+    Each contract is its own round trip; ``roots`` maps a contract ID to NQ or
+    MNQ for a two-contract book, otherwise every contract is ``root``.
     Journal row order preserves a correction's original place in the history.
     Cash flows use Decimal; only the final USD result is rounded to cents.
     No state here is used to place orders or reconcile broker positions.
     """
     active, summaries = {}, {}
-    multiplier = Decimal(str(MULTIPLIERS[root]))
+    roots = roots or {}
     for fill in executions:
         order = orders.get(fill["order_id"])
         if order is None or order["con_id"] != fill["con_id"]:
@@ -70,6 +72,7 @@ def positions(executions, orders, root):
                 "broker_time": fill["time"],
             }
             if flat:
+                multiplier = Decimal(str(MULTIPLIERS[roots.get(con_id, root)]))
                 pnl = None if cycle["unknown"] else float((cycle["cash"] * multiplier).quantize(Decimal("0.01")))
                 summary["gross_pnl"] = pnl
                 del active[con_id]

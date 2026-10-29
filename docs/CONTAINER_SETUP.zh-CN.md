@@ -9,7 +9,7 @@
 
 **从未用过终端？先看[零基础指南](SETUP.zh-CN.md)。**本页是技术安装、维护及恢复参考。
 
-0.2.0 已准备用于小范围模拟账户接入。
+0.3.0 已准备用于小范围模拟账户接入。
 验证范围见[版本说明](RELEASE_NOTES.zh-CN.md)。既有安装保留原后端，迁移需明确安排。此向导支持全新安装和继续自己的已有安装，
 不会覆盖其他安装的 Gateway 服务或自动更换已固定的执行器镜像。
 兼容版本可在停止且空仓时使用下方明确的升级／回退命令。原生安装迁移仍需单独审查；
@@ -19,7 +19,7 @@
 向导前完成 [IBKR 附加账户／第二用户名准备](IBKR_ACCOUNT_SETUP.zh-CN.md)。
 新实例使用 **2 OCPU／12 GB 内存**，Gateway 与手机交易使用不同用户名，并单独核验模拟登录。
 
-## 0.2.0 凭据隔离
+## 0.3.0 凭据隔离
 
 执行器容器无法读取管理的 Gateway 凭据目录或维护备份。空的只读挂载遮蔽这两个
 子目录，凭据、Gateway 数据卷及交易日志仍保留原主机路径，主机控制程序与 Gateway
@@ -117,7 +117,7 @@ cd follow-stack-VERSION-ubuntu24.04-arm64-cp312
 | API 监控需要处理 | 检查固定探针镜像／配置并保留客户端 ID 9701；探针错误或账户不匹配不会触发 Gateway 重启 |
 | 查看执行器 | `./follow-stack status`、`service-status` 或 `logs` |
 | 停止跟随并禁用执行器自启 | `./follow-stack stop`；不会平仓或撤单 |
-| 停止且空仓后更改手数 | `./follow-stack settings --root MNQ --quantity 1` |
+| 停止且空仓后更改仓位 | `./follow-stack settings`（交互询问并预览 NQ/MNQ 数量）、`./follow-stack settings --leverage-fraction 0.5`，或固定数量 `--root MNQ --quantity 1` |
 | 已保留的向导版本使用不同镜像 | 使用下方明确的升级步骤 |
 | Gateway 属于其他安装 | 安排迁移审查，不要删除日志绕过拒绝 |
 
@@ -151,7 +151,9 @@ API/VNC 仅监听本机；用 SSH 转发 VNC。配置、凭据、Gateway 卷和�
 输入显示的确认后，创建私密配置备份及一致的 SQLite 备份，再停止 Gateway、更换服务定义和
 固定的执行器镜像。两个服务均保持停止。凭据、Gateway 原有持久卷、交易历史及暂停状态保留。
 该过程保留同一个 Gateway 镜像，并要求日志、配置和 Gateway 代码完全兼容；数据库结构或
-Gateway 版本变化需要另行审查迁移。
+Gateway 版本变化需要另行审查迁移。唯一经过审查的迁移是 **0.2.0 到 0.3.0**：交易日志和
+Gateway 代码相同，0.3.0 可原样读取 0.2.0 的设置。请按 [0.2.0 升级指南](UPGRADE.zh-CN.md)操作，
+其中包括用 `./follow-stack settings` 选择杠杆比例。回滚到 0.2.0 前必须先改回固定数量，因为 0.2.0 无法读取余额仓位。
 
 从选定版本运行 `./follow-stack gateway start`、批准登录、`./follow-stack check`，再明确
 `./follow-stack start`。就绪检查需要可用行情；维护不会清除暂停。
@@ -172,10 +174,10 @@ Gateway 版本变化需要另行审查迁移。
 在源码目录中，使用独立输出目录：
 
 ```bash
-python3.12 scripts/build-executor-container.py --tag follow-executor:0.2.0 --output dist/container-wizard/image
-python3.12 scripts/test-executor-container.py --image follow-executor:0.2.0
+python3.12 scripts/build-executor-container.py --tag follow-executor:0.3.0 --output dist/container-wizard/image
+python3.12 scripts/test-executor-container.py --image follow-executor:0.3.0
 curl --fail --location --output /tmp/follow-dependencies.tar.gz https://github.com/quantmnq/executor-container/releases/download/v0.1.12/follow-executor-0.1.12-dependencies.tar.gz
-python3.12 scripts/collect-third-party-source.py --image follow-executor:0.2.0 --reuse-archive /tmp/follow-dependencies.tar.gz --reuse-sha256 c2740a33b3f91508c70116d4c0a4389b47fe2fd1748b16b5cf9f480dac0bb769
+python3.12 scripts/collect-third-party-source.py --image follow-executor:0.3.0 --reuse-archive /tmp/follow-dependencies.tar.gz --reuse-sha256 c2740a33b3f91508c70116d4c0a4389b47fe2fd1748b16b5cf9f480dac0bb769
 python3.12 scripts/build-container-kit.py --build dist/container-wizard/image/BUILD.json --third-party dist/third-party/SOURCES.json --output dist/container-wizard/kit
 ```
 
@@ -277,6 +279,6 @@ Gateway，确认认证且空仓，配置和交易日志不变，所有执行器�
 周日观测同样没有验证新的手机认证请求或实时行情。
 不要仅为安装器测试重跑已经完成的模拟交易周期。
 
-0.2.0 的依赖固定版本与 0.1.12 相同，上述命令按可信 SHA-256 复用该版准确的依赖源码。
+0.3.0 的依赖固定版本与 0.1.12 相同，上述命令按可信 SHA-256 复用该版准确的依赖源码。
 收集器验证压缩包及文件哈希，组合包构建器继续核对镜像完整依赖清单。依赖变更时，不带
 `--reuse-archive` 重新收集并核对来源；不得用较新源码替代实际安装的依赖版本。

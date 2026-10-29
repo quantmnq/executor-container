@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 
 from .broker import BrokerState
 from .journal import Journal
-from .signal import Target
+from .signal import NEXT_OPEN_RULES, Target
 
 ENTRY_PROTECTION_SECONDS = 30
 REPLACEMENT_PROTECTION_SECONDS = 60
@@ -59,7 +59,7 @@ class ProtectionWatch:
         order = state.orders.get(order_id)
         plan = target.exit_plan if target is not None else None
         if (order is None or order.purpose != "stop" or order.client_id != client_id
-                or plan is None or plan.rule != "next_rth_open"
+                or plan is None or plan.rule not in NEXT_OPEN_RULES
                 or plan.cancel_stop_at is None or plan.flatten_at is None
                 or plan.flatten_at - plan.cancel_stop_at != timedelta(seconds=60)
                 or not plan.cancel_stop_at <= now < plan.flatten_at):
@@ -100,7 +100,7 @@ class ProtectionWatch:
     def _planned_deadline(record: dict, state: BrokerState, position: int, target: Target | None) -> str | None:
         evidence = record.get("planned_cancel")
         plan = target.exit_plan if target is not None else None
-        if (not evidence or plan is None or plan.rule != "next_rth_open"
+        if (not evidence or plan is None or plan.rule not in NEXT_OPEN_RULES
                 or target.trade_key != evidence["trade_key"]
                 or target.contract_month != evidence["contract_month"]
                 or position != evidence["position"]

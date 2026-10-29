@@ -56,7 +56,7 @@ Ask Auto Quant for these four items and keep them somewhere private:
 
 | Item | What it is for |
 | --- | --- |
-| `follow-executor-0.2.0-ubuntu24.04-arm64-cp312.tar.gz` | The installation download; keep the filename as supplied |
+| `follow-executor-0.3.0-ubuntu24.04-arm64-cp312.tar.gz` | The installation download; keep the filename as supplied |
 | The matching `.tar.gz.sha256` file | A small file that lets Ubuntu check the download is complete and unchanged |
 | Your personal relay token and expected leader public-key fingerprint | Your private access code and the identifier used to check the signal provider |
 | An Auto Quant Discord invitation | Needed only if you want private transaction messages |
@@ -141,7 +141,7 @@ paste the following as **one line**. `scp` means “copy files securely.” Keep
 colon and `Downloads/` at the end.
 
 ```bash
-scp -i ./auto-quant.key follow-executor-0.2.0-ubuntu24.04-arm64-cp312.tar.gz follow-executor-0.2.0-ubuntu24.04-arm64-cp312.tar.gz.sha256 ubuntu@YOUR_OCI_PUBLIC_IP:Downloads/
+scp -i ./auto-quant.key follow-executor-0.3.0-ubuntu24.04-arm64-cp312.tar.gz follow-executor-0.3.0-ubuntu24.04-arm64-cp312.tar.gz.sha256 ubuntu@YOUR_OCI_PUBLIC_IP:Downloads/
 ```
 
 Wait for both transfers to finish. If prompted on this first connection, check
@@ -151,7 +151,7 @@ the address against your instance before accepting it.
 
 ```bash
 cd ~/Downloads
-sha256sum --check follow-executor-0.2.0-ubuntu24.04-arm64-cp312.tar.gz.sha256
+sha256sum --check follow-executor-0.3.0-ubuntu24.04-arm64-cp312.tar.gz.sha256
 ```
 
 You should see the archive's name followed by **OK**. This check detects an
@@ -161,8 +161,8 @@ Auto Quant. Then unpack the download into its permanent folder:
 
 ```bash
 mkdir -p ~/auto-quant
-tar -xzf follow-executor-0.2.0-ubuntu24.04-arm64-cp312.tar.gz -C ~/auto-quant
-cd ~/auto-quant/follow-executor-0.2.0-ubuntu24.04-arm64-cp312
+tar -xzf follow-executor-0.3.0-ubuntu24.04-arm64-cp312.tar.gz -C ~/auto-quant
+cd ~/auto-quant/follow-executor-0.3.0-ubuntu24.04-arm64-cp312
 ./install.sh --verify-only
 ```
 
@@ -362,8 +362,9 @@ Gateway login itself does not start Auto Quant trading.
 | --- | --- |
 | Account mode | `paper` |
 | IBKR account ID | The paper account shown in Gateway, for example `DU1234567`; this is **not** your username |
-| Instrument | `MNQ` or `NQ`, as agreed for your subscription |
-| Number of contracts | Your chosen whole-number quantity; the suggested value is 1 |
+| Sizing | `balance` (default: NQ plus an MNQ remainder from your balance), or `MNQ`/`NQ` for a fixed size, as agreed for your subscription |
+| Leverage fraction | With `balance`: your chosen number above 0 and at most 1; `1` follows the leader's full 6x. Optional preview prompts follow; Enter skips them |
+| Number of contracts | With a fixed size: your chosen whole number; the suggested value is 1 |
 | Personal relay token | The private token supplied by Auto Quant; input is hidden |
 
 The normal provider address and signal stream are already filled in. If Auto Quant
@@ -457,7 +458,7 @@ step 6 with the account shown in Gateway:
 | Check | What you need |
 | --- | --- |
 | `account_type` | `paper` |
-| `root` and `quantity` | The instrument and quantity you chose in step 6 |
+| `root` and `quantity`, or `sizing` | The fixed size, or the leverage fraction and its split at example weights, you chose in step 6 |
 | `leader_key_id` | Matches the fingerprint Auto Quant supplied |
 | `problems` | An empty list: `[]` |
 
@@ -500,7 +501,7 @@ ssh -i ./auto-quant.key ubuntu@YOUR_OCI_PUBLIC_IP
 After the prompt changes to Ubuntu, return to the installation folder:
 
 ```bash
-cd ~/auto-quant/follow-executor-0.2.0-ubuntu24.04-arm64-cp312
+cd ~/auto-quant/follow-executor-0.3.0-ubuntu24.04-arm64-cp312
 ```
 
 Then use the commands below **on Ubuntu**:

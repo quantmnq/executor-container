@@ -20,7 +20,7 @@ python3.12 scripts/test-executor-container.py
 python3.12 scripts/test-executor-isolation.py
 ```
 
-默认标签为 `follow-executor:0.2.0`，构建记录位于
+默认标签为 `follow-executor:0.3.0`，构建记录位于
 `dist/executor-container/BUILD.json`，包含镜像 ID 和输入哈希。
 基础镜像按摘要固定，依赖按版本和哈希固定。官方 IBKR API 10.50.2 从供应商下载并
 校验，不使用 PyPI 的 `ibapi` 包。构建上下文只含应用字节码 wheel、Dockerfile、
@@ -31,7 +31,7 @@ python3.12 scripts/test-executor-isolation.py
 模拟断线重连、SIGTERM、SIGKILL 后替换、持仓与保护止损恢复、SQLite 完整性、
 重放不重复开仓和安全暂停保留。不会连接真实 Gateway、信号源或账户。
 
-本地导出可用 `docker save follow-executor:0.2.0 | gzip > executor-image.tar.gz`，
+本地导出可用 `docker save follow-executor:0.3.0 | gzip > executor-image.tar.gz`，
 接收方用 `docker load -i executor-image.tar.gz` 加载。通过客户发布渠道提供匹配的
 校验和、脚本及指南。字节码安装包包含脚本和指南，但不含镜像层；构建不会发布到
 registry。分发镜像时需一并提供匹配源码与声明，参阅[源码交付](SOURCE.zh-CN.md)。
@@ -76,7 +76,7 @@ sudo loginctl enable-linger "$USER"
 
 <a id="credential-isolation"></a>
 
-## Gateway 凭据隔离（0.2.0）
+## Gateway 凭据隔离（0.3.0）
 
 每个生产执行器命令及生成的服务，都会用空的只读、不可执行 tmpfs 挂载遮蔽以下管理目录：
 
@@ -122,7 +122,7 @@ Gateway 保持只监听 loopback；执行器不开放入站端口。不支持 Do
 | `./follow-container service-status` | 查看进程状态，不代表账户就绪 |
 | `./follow-container logs` | 跟随日志，Ctrl-C 退出查看 |
 | `./follow-container stop` | 停止并禁用自启动，不平仓或撤单 |
-| `./follow-container settings --root MNQ --quantity 1` | 保留原有空仓设置检查 |
+| `./follow-container settings`（交互询问）、`--leverage-fraction 0.5` 或 `--root MNQ --quantity 1` | 保留原有空仓设置检查 |
 | `./follow-container discord link` / `discord enable` | 可选通知设置 |
 | `./follow-container resume` | 人工恢复暂停，可能接管／平掉经纪商持仓 |
 

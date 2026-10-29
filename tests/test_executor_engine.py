@@ -6,14 +6,14 @@ import unittest
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
-from executor_support import ATR, SIGNAL_TIME, T0, contract, target
+from executor_support import ATR, SIGNAL_TIME, STOP_ATR, T0, contract, target
 
 from follow_executor.broker import OrderView
 from follow_executor.engine import Cancel, Halt, MarkTrade, Modify, Place, View, decide
 from follow_executor.signal import round_down, round_up
 
 CONTRACT = contract()
-LIVE_FILL = 30780.3125
+FILL = 30532.8125
 
 
 def order(order_id: int, purpose: str, *, action: str = "SELL", order_type: str = "STP",
@@ -30,7 +30,7 @@ def view(signal, **changes) -> View:
 
 def held(signal, **changes) -> View:
     defaults = {"position": 2, "position_contract": CONTRACT, "trade_status": "entered",
-                "entry_price": LIVE_FILL}
+                "entry_price": FILL}
     return view(signal, **{**defaults, **changes})
 
 
@@ -86,8 +86,8 @@ class StopTests(unittest.TestCase):
         actions = decide(held(target(1, "entry"), trade_status="entering"))
         self.assertEqual(actions[0].status, "entered")
         stop = actions[1].request
-        self.assertEqual(stop.stop_price, round_down(LIVE_FILL - ATR * 11.5))
-        self.assertEqual(stop.stop_price, 30452.75)  # the leader's own live stop for this fill
+        self.assertEqual(stop.stop_price, round_down(FILL - ATR * STOP_ATR))
+        self.assertEqual(stop.stop_price, 30452.75)  # 80 points below the fill, rounded down
         self.assertEqual((stop.action, stop.tif, stop.outside_rth), ("SELL", "GTC", True))
 
     def test_published_stop_is_followed_in_either_direction(self) -> None:
@@ -143,10 +143,10 @@ class ExitTests(unittest.TestCase):
         self.assertEqual(decide(view(signal, now=due, trade_status="closed")), [])
 
     def test_gap_session_close_fallback_does_not_pre_empt_the_leaders_decision(self) -> None:
-        plan = {"rule": "session_close", "flatten_at": "2026-10-01T19:55:00+00:00"}
+        plan = {"rule": "session_close", "flatten_at": "2026-10-01T17:00:00+00:00"}
         gap = target(3, "protective_stop_installed", leg="gap", stop=30000.0, plan=plan,
-                     signal_time=datetime(2026, 10, 1, 13, 35, tzinfo=UTC))
-        at_decision = datetime(2026, 10, 1, 19, 55, 7, tzinfo=UTC)
+                     signal_time=datetime(2026, 10, 1, 14, 0, tzinfo=UTC))
+        at_decision = datetime(2026, 10, 1, 17, 0, 7, tzinfo=UTC)
         self.assertEqual(decide(held(gap, stops=(order(7, "stop", stop=30000.0),), now=at_decision)), [])
         drift = target(4, "gap_drift_continuation", stop=30100.0)
         actions = decide(held(drift, stops=(order(7, "stop", stop=30000.0),), trade_status=None,
@@ -173,14 +173,14 @@ class ExitTests(unittest.TestCase):
 
 class ShortLegTests(unittest.TestCase):
     def test_bounce_short_enters_sells_and_protects_above(self) -> None:
-        plan = {"rule": "session_close", "flatten_at": "2026-10-01T19:55:00+00:00"}
+        plan = {"rule": "session_close", "flatten_at": "2026-10-01T17:00:00+00:00"}
         short = target(1, "entry", "short", leg="bounce", plan=plan,
                        signal_time=SIGNAL_TIME - timedelta(hours=2), emitted=T0 - timedelta(hours=2))
         entry = decide(view(short, now=T0 - timedelta(hours=2)))[1].request
         self.assertEqual((entry.action, entry.order_type), ("SELL", "MKT"))
         stop = decide(view(short, position=-2, position_contract=CONTRACT, trade_status="entering",
                            entry_price=30000.0, now=T0 - timedelta(hours=2)))[1].request
-        self.assertEqual((stop.action, stop.stop_price), ("BUY", round_up(30000.0 + ATR * 11.5)))
+        self.assertEqual((stop.action, stop.stop_price), ("BUY", round_up(30000.0 + ATR * STOP_ATR)))
 
 
 if __name__ == "__main__":

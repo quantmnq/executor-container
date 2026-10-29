@@ -45,7 +45,7 @@ Example values below are synthetic.
   "schema": "signal.v1",
   "stream": "sessioncycle.mnq",
   "seq": 2,
-  "emitted_at": "2026-10-01T18:10:09.150110+00:00",
+  "emitted_at": "2026-10-01T17:00:09.150110+00:00",
   "cause": "protective_stop_installed",
   "instrument": {"root": "MNQ", "exchange": "CME", "currency": "USD",
                  "contract_month": "202612", "last_trade_date": "20261218"},
@@ -53,24 +53,30 @@ Example values below are synthetic.
     "position": "long",
     "leg": "drift",
     "entry": {"session": "2026-10-01",
-              "signal_time": "2026-10-01T18:10:00+00:00",
-              "deadline": "2026-10-01T18:11:07.157008+00:00",
-              "reference_price": null, "atr": 20.25,
-              "stop_atr": 2.0,
-              "trailing": {"enabled": true, "activation_atr": 1.0, "distance_atr": 1.5}},
+              "signal_time": "2026-10-01T17:00:00+00:00",
+              "deadline": "2026-10-01T17:01:07.157008+00:00",
+              "reference_price": null, "atr": 20.0,
+              "stop_atr": 4.0,
+              "trailing": {"enabled": true, "activation_atr": 3.0, "distance_atr": 5.0}},
     "protective_stop": {"price": 30452.75},
     "exit_plan": {"rule": "next_rth_open",
-                  "cancel_stop_at": "2026-10-02T13:29:00+00:00",
-                  "flatten_at": "2026-10-02T13:30:00+00:00"}
+                  "cancel_stop_at": "2026-10-02T13:27:00+00:00",
+                  "flatten_at": "2026-10-02T13:28:00+00:00",
+                  "minutes_before_open": "2"},
+    "sizing": {"weight": 0.5, "target_leverage": 6.0,
+               "add_max_leverage": 5.88, "hold_max_leverage": 6.6}
   }
 }
 ```
 
+The times and numbers in this example are illustrative, not the leader's
+parameters; act on the values in each signal.
+
 - `position` is `flat`, `long` or `short`. A flat target has no leg, entry,
   stop or exit plan.
-- **No quantity.** Choose NQ or MNQ of `contract_month` and your own size.
-  Both trade in the same index points on the same 0.25 tick, so every price
-  applies to either.
+- **No quantity.** Choose NQ or MNQ of `contract_month` and your own size, or
+  size from `sizing` below. Both trade in the same index points on the same
+  0.25 tick, so every price applies to either.
 - `entry.deadline`: a flat follower may not open this position after it.
   Joining late never opens a stale trade.
 - `entry.reference_price`: the NQ close of the leader's completed decision
@@ -85,8 +91,27 @@ Example values below are synthetic.
 - `exit_plan`: the leader's own clock exit, as a fallback if you lose the
   feed.
   - `next_rth_open`: cancel the stop at `cancel_stop_at` and flatten at
-    `flatten_at`.
+    `flatten_at`, one minute later and shortly before the next 09:30 US Eastern
+    regular open; `minutes_before_open` is the flatten time's minutes before
+    that open, as a string. `before_next_rth_open` is an equivalent
+    name the leader briefly published; followers from 0.3.0 accept both, and
+    the leader sends `next_rth_open` so 0.2.0 followers keep working.
   - `session_close`: flatten at `flatten_at`.
+  - Always act on `cancel_stop_at` and `flatten_at`; `minutes_before_open`
+    is informational.
+- `sizing`: present on every non-flat target under the leader's current
+  sizing; absent on flat targets and older events.
+  - `weight`: this trade's weight, above 0 and at most 1. Each signal carries
+    its trade's `sizing.weight`, and followers use whatever weight they
+    receive.
+  - `target_leverage`, `add_max_leverage`, `hold_max_leverage`: the leader's
+    balance band, currently 6x with a 5.88x add and a 6.6x reset limit.
+  - One unit is one MNQ (USD 2 per index point); one NQ is ten units. The
+    leader's base is `floor(6 × NetLiquidation / (2 × NQ price))` units, held
+    inside the band, and each trade is `round(base × weight)` units (none when
+    that rounds to 0) as
+    `units // 10` NQ plus `units % 10` MNQ.
+  - Followers that ignore unknown fields, including 0.2.0, are unaffected.
 
 ## Causes
 
@@ -97,7 +122,7 @@ Example values below are synthetic.
 | `protective_stop_tightened` | trailing move |
 | `gap_drift_continuation` | a held Gap long becomes Drift: same position, new leg, entry, stop and exit plan; flat followers get a fresh deadline |
 | `continuation_stop_repriced` | the continuation's stop changed |
-| `preopen_stop_cancelled` | stop cancelled one minute before the regular open |
+| `preopen_stop_cancelled` | stop cancelled at `cancel_stop_at`, before the regular open |
 | `exit_started`, `exit` | the target is flat |
 | `reconciled` | a correction, for example after the leader's stop filled |
 

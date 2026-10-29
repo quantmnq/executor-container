@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from .broker import MULTIPLIERS
+from .broker import BOOK_ROOTS, MULTIPLIERS
 
 STREAM_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 HARD_MAX_QUANTITY = 100
@@ -33,6 +33,14 @@ class IBKRSettings:
     account: str
     account_type: str  # paper or live
     timeout_seconds: float
+
+
+@dataclass(frozen=True)
+class SizingSettings:
+    """``balance``: NQ plus MNQ sized from NetLiquidation at a fraction of the leader's band."""
+
+    mode: str
+    leverage_fraction: float
 
 
 @dataclass(frozen=True)
@@ -55,10 +63,23 @@ class ExecutorConfig:
     clock_exit_grace_seconds: float
     send_acks: bool
     discord_link_id: str | None = None
+    sizing: SizingSettings | None = None
 
     @property
     def multiplier(self) -> float:
         return MULTIPLIERS[self.root]
+
+    @property
+    def roots(self) -> tuple[str, ...]:
+        """Every futures root this executor trades and reconciles."""
+        return BOOK_ROOTS if self.sizing is not None else (self.root,)
+
+    @property
+    def size_label(self) -> str:
+        """``2 MNQ`` with a fixed quantity, ``BALANCE 0.5`` with balance sizing."""
+        if self.sizing is not None:
+            return f"BALANCE {self.sizing.leverage_fraction:g}"
+        return f"{self.quantity} {self.root}"
 
     def token(self) -> str:
         token = self.token_path.read_text(encoding="utf-8").strip()
@@ -144,6 +165,22 @@ def _ibkr(section: dict[str, Any]) -> IBKRSettings:
     )
 
 
+def _sizing(raw: dict[str, Any]) -> SizingSettings | None:
+    if "sizing" not in raw:
+        return None
+    section = raw["sizing"]
+    if not isinstance(section, dict) or set(section) != {"mode", "leverage_fraction"}:
+        raise ConfigError("sizing must be {\"mode\": \"balance\", \"leverage_fraction\": f}")
+    if section["mode"] != "balance":
+        raise ConfigError("sizing.mode must be balance")
+    fraction = section["leverage_fraction"]
+    if type(fraction) not in (int, float) or not math.isfinite(fraction) or not 0 < fraction <= 1:
+        raise ConfigError("sizing.leverage_fraction must be a number above 0 and at most 1")
+    if "instrument" in raw:
+        raise ConfigError("instrument does not apply with balance sizing, which trades NQ and MNQ")
+    return SizingSettings("balance", float(fraction))
+
+
 def load_config(path: str | Path) -> ExecutorConfig:
     raw = json.loads(Path(path).read_text(encoding="utf-8"))
     return parse_config(raw)
@@ -153,7 +190,7 @@ def parse_config(raw: Any) -> ExecutorConfig:
     if not isinstance(raw, dict):
         raise ConfigError("the configuration must be a JSON object")
     known = {"relay_url", "stream", "leader_public_key", "token_path", "journal_path",
-             "ca_file", "ibkr", "instrument", "risk", "feed", "notifications"}
+             "ca_file", "ibkr", "instrument", "risk", "feed", "notifications", "sizing"}
     unknown = sorted(set(raw) - known)
     if unknown:
         raise ConfigError(f"unknown configuration keys: {', '.join(unknown)}")
@@ -161,13 +198,18 @@ def parse_config(raw: Any) -> ExecutorConfig:
     if not isinstance(stream, str) or not STREAM_PATTERN.match(stream):
         raise ConfigError("stream must be a stream name such as sessioncycle.mnq")
 
-    instrument = _section(raw, "instrument")
-    root = instrument.get("root")
-    if root not in MULTIPLIERS:
-        raise ConfigError("instrument.root must be NQ or MNQ")
+    sizing = _sizing(raw)
     risk = _section(raw, "risk")
     max_quantity = _integer(risk, "max_quantity", 10, 1, HARD_MAX_QUANTITY)
-    quantity = _integer(instrument, "quantity", None, 1, max_quantity)
+    if sizing is None:
+        instrument = _section(raw, "instrument")
+        root = instrument.get("root")
+        if root not in MULTIPLIERS:
+            raise ConfigError("instrument.root must be NQ or MNQ")
+        quantity = _integer(instrument, "quantity", None, 1, max_quantity)
+    else:
+        # Quantities are sized at each entry; max_quantity caps each order.
+        root, quantity = BOOK_ROOTS[0], 0
     stop_risk = risk.get("max_stop_risk_usd")
     if stop_risk is not None and (
         type(stop_risk) not in (int, float) or not math.isfinite(stop_risk) or stop_risk <= 0
@@ -205,4 +247,5 @@ def parse_config(raw: Any) -> ExecutorConfig:
         clock_exit_grace_seconds=_number(feed, "clock_exit_grace_seconds", 30, 0, 300),
         send_acks=acks,
         discord_link_id=link_id,
+        sizing=sizing,
     )

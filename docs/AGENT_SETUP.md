@@ -48,16 +48,42 @@ early broker cache alone is not proof that the account is flat.
 ## Questions, private input and decisions
 
 Ask only for information needed at the current stage. Explain why a choice is
-needed and offer the guide's default. Collect instrument and quantity from the
+needed and offer the guide's default. Collect the sizing choice from the
 customer; never infer consent to a trade size. Start new installations in paper
-mode. Leave existing account identity, mode, quantity and schedule unchanged
+mode. Leave existing account identity, mode, sizing and schedule unchanged
 unless the customer explicitly requests the appropriate change procedure.
+
+### Sizing choice (0.3.0)
+
+The wizard's `Sizing` prompt offers `balance` (the default for new setups) or a
+fixed `MNQ`/`NQ` quantity. With `balance` it asks for the **leverage fraction**
+`f`, a number above 0 and at most 1. Explain it before the customer types it:
+
+- `f = 1` follows the leader's own size: about 6x NetLiquidation in NQ notional,
+  held inside a 5.88x–6.6x band. `f = 0.5` is half of that. The executor sizes
+  each new entry from IBKR NetLiquidation and the `sizing.weight` each signal
+  carries for its trade (above 0, at most 1), trading NQ plus an MNQ remainder
+  (for example `1 NQ + 7 MNQ`); held trades never resize.
+- The customer chooses `f`. Do not suggest a value as a recommendation, and do
+  not raise `risk.max_quantity` or `risk.max_margin_fraction` on their behalf.
+- The wizard can preview the NQ/MNQ split at example weights. On a new setup
+  it asks for an approximate NetLiquidation and NQ price (Enter skips).
+  Rerunning `./follow-stack settings` with Gateway logged in uses IBKR's
+  NetLiquidation. `./follow-stack check` reports the real preview, the margin at
+  weight 1 (the largest size) and anything that would be refused (base 0, a
+  weight rounding to 0 contracts, or above `risk.max_quantity`). There is no
+  minimum size: on a small account, low-weight trades are skipped.
+- The start confirmation names the size: `START PAPER BALANCE 0.5` (or
+  `START PAPER 1 MNQ` for a fixed size).
+
+Existing 0.2.0 customers upgrade with [UPGRADE.md](UPGRADE.md); their fixed size
+keeps working until they choose balance sizing.
 
 | Information | How to obtain it |
 | --- | --- |
 | VM IP, SSH username, key file location | Ask if not already available; use the key file without displaying its contents. |
 | Provider fingerprint | Ask for the expected non-secret fingerprint and compare it to `leader_key_id` during the check. Do not trust a matching fingerprint you derived only from the supplied package. |
-| Instrument, quantity, Discord preference, Sunday schedule | Ask in conversation; confirm choices before configuration. |
+| Leverage fraction `f` (or a fixed instrument and quantity), Discord preference, Sunday schedule | Ask in conversation; confirm choices before configuration. |
 | IBKR account ID | Have the customer enter it into the configuration wizard and compare it with Gateway; avoid copying it into chat or progress notes. |
 | IBKR username/password, relay token, VNC or sudo password | Customer enters these directly in their own terminal or official login UI. Never request them in chat, command arguments or environment variables. |
 | Discord one-time code | Have the customer run linking in their terminal and submit the displayed code to AQ Bot's `/link`; do not retain the code. |
@@ -124,8 +150,9 @@ After account/cloud preparation, follow [SETUP.md](SETUP.md) in order:
 1. Verify the archive against its trusted checksum and transfer it to Ubuntu.
    Extract to a permanent folder; install through **`./follow-stack setup`**.
 2. Hand the interactive wizard to the customer's own SSH terminal. Explain
-   paper account ID, instrument/size, dedicated Gateway paper login, relay token
-   and schedule first. Never answer hidden prompts through the agent transcript.
+   paper account ID, the sizing choice and leverage fraction, dedicated Gateway
+   paper login, relay token and schedule first. Never answer hidden prompts
+   through the agent transcript.
 3. Follow the Docker reboot instruction once needed, save progress, reconnect,
    and rerun the same command. Saved steps and credentials are reused.
 4. Customer approves Gateway authentication. The wizard configures API settings;
@@ -137,7 +164,8 @@ After account/cloud preparation, follow [SETUP.md](SETUP.md) in order:
    If quote verification waits on the market, record it as pending.
 6. If Discord is wanted, follow the bundled screenshot and linking steps with
    `./follow-stack discord link`, test DM, then `./follow-stack discord enable`.
-7. Present the verified paper mode, root and quantity. Obtain explicit agreement
+7. Present the verified paper mode and size (`BALANCE f` with the check's
+   split at example weights, or the fixed root and quantity). Obtain explicit agreement
    before `./follow-stack start`; otherwise finish configured with trading stopped.
 
 Use bounded logs such as `journalctl --user -u 'follow-executor-container-*.service' -n 60 --no-pager`, plus public status
@@ -255,8 +283,9 @@ repeating a start/consent. Use `./follow gateway status` when Gateway configurat
 exists, `./follow status` for journal information, and `./follow check` only while
 stopped. Presence of a file is not proof of success. Never delete journals,
 notification queues or credentials to make installation appear fresh; never
-copy active state to a second executor. For upgrades use [SETUP.md](SETUP_NATIVE.md#update)
-and preserve both private configuration and state.
+copy active state to a second executor. For combined-kit upgrades from 0.2.0 use
+[UPGRADE.md](UPGRADE.md); for native kits use [SETUP_NATIVE.md](SETUP_NATIVE.md#update).
+Preserve both private configuration and state.
 
 ## If a checkpoint fails
 

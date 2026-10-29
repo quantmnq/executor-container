@@ -103,3 +103,64 @@ class QuoteReadinessTests(unittest.TestCase):
             self.assertEqual(code, 1)
             self.assertEqual(report["readiness"]["api"], "disconnected")
             self.assertTrue(any("disconnected before" in issue for issue in report["problems"]))
+
+    def test_balance_check_reports_net_liquidation_split_and_book_margin(self):
+        with tempfile.TemporaryDirectory() as directory:
+            leader = Leader()
+            config = write_config(Path(directory), leader.public_key)
+            raw = json.loads((Path(directory) / "executor.json").read_text())
+            raw.pop("instrument")
+            raw["sizing"] = {"mode": "balance", "leverage_fraction": 0.5}
+            (Path(directory) / "executor.json").write_text(json.dumps(raw))
+            from follow_executor.config import load_config
+            config = load_config(Path(directory) / "executor.json")
+            response = Mock(headers={})
+            response.read.return_value = json.dumps(leader.envelope(payload(1, "test", "flat"))).encode()
+            broker = self.broker("ready")
+            broker.managed_accounts = (config.ibkr.account,)
+            broker.state.return_value = BrokerState(connected=True)
+            broker.resolve.side_effect = lambda root, month: contract(month, root)
+            broker.what_if.side_effect = lambda request: MarginEstimate(
+                40_000.0 if request.contract.root == "NQ" else 52_000.0, 250_000.0, "",
+                0.0 if request.contract.root == "NQ" else 40_000.0)
+            broker.net_liquidation.return_value = 250_000.0
+            broker.quote_price.return_value = 21000.0
+            output = io.StringIO()
+            with patch("urllib.request.urlopen") as urlopen, \
+                    patch("follow_executor.ibkr.IBKRBroker", return_value=broker) as factory, \
+                    contextlib.redirect_stdout(output):
+                urlopen.return_value.__enter__.return_value = response
+                code = command_check(config, skip_broker=False, quotes=True)
+            report = json.loads(output.getvalue())
+            self.assertEqual(code, 0, report["problems"])
+            self.assertEqual(factory.call_args.args[1], ("NQ", "MNQ"))
+            self.assertEqual(report["root"], "NQ+MNQ")
+            self.assertEqual(report["sizing"]["base_units"], 17)
+            self.assertEqual(report["sizing"]["price_source"], "live NQ quote")
+            self.assertEqual([size["book"] for size in report["sizing"]["weights"]][:2], ["1 NQ + 7 MNQ", "1 NQ + 3 MNQ"])
+            broker.net_liquidation.return_value = 20_000.0  # base 1 at f = 0.5
+            broker.what_if.side_effect = lambda request: MarginEstimate(2_000.0, 20_000.0)
+            output = io.StringIO()
+            with patch("urllib.request.urlopen") as urlopen, \
+                    patch("follow_executor.ibkr.IBKRBroker", return_value=broker), \
+                    contextlib.redirect_stdout(output):
+                urlopen.return_value.__enter__.return_value = response
+                self.assertEqual(command_check(config, skip_broker=False, quotes=True), 0)
+            small = json.loads(output.getvalue())["sizing"]
+            self.assertEqual(small["weights"][-1]["book"], "no entry (rounds to 0 contracts)")
+            self.assertEqual(small["weights"][0]["book"], "1 MNQ")
+            broker.net_liquidation.return_value = 250_000.0
+            broker.what_if.side_effect = lambda request: MarginEstimate(
+                40_000.0 if request.contract.root == "NQ" else 52_000.0, 250_000.0, "",
+                0.0 if request.contract.root == "NQ" else 40_000.0)
+            self.assertEqual(report["margin"]["BUY"]["init_margin_after"], 52_000.0)
+            self.assertEqual(set(report["contract"]), {"NQ", "MNQ"})
+            broker.place.assert_not_called()
+            broker.what_if.side_effect = lambda request: MarginEstimate(80_000.0, 250_000.0)
+            output = io.StringIO()
+            with patch("urllib.request.urlopen") as urlopen, \
+                    patch("follow_executor.ibkr.IBKRBroker", return_value=broker), \
+                    contextlib.redirect_stdout(output):
+                urlopen.return_value.__enter__.return_value = response
+                self.assertEqual(command_check(config, skip_broker=False, quotes=True), 1)
+            self.assertTrue(any("max_margin_fraction" in issue for issue in json.loads(output.getvalue())["problems"]))

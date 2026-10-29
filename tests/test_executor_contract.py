@@ -23,16 +23,16 @@ REPOSITORY = Path(__file__).resolve().parents[1]
 # Synthetic contract example; no historical subscriber signal is published here.
 EXAMPLE_ENTRY = canonical({
     "cause": "entry", "changed": ["entry", "exit_plan", "leg", "position"],
-    "emitted_at": "2026-10-01T18:10:07.157008+00:00",
+    "emitted_at": "2026-10-01T17:00:07.157008+00:00",
     "instrument": {"contract_month": "202612", "currency": "USD", "exchange": "CME",
                    "last_trade_date": "20261218", "root": "MNQ"},
     "schema": "signal.v1", "seq": 1, "strategy": {"profile": "example-profile"},
     "stream": "sessioncycle.mnq",
     "target": {
-        "entry": {"atr": 20.25, "deadline": "2026-10-01T18:11:07.157008+00:00",
+        "entry": {"atr": 20.0, "deadline": "2026-10-01T17:01:07.157008+00:00",
                   "reference_price": None, "session": "2026-10-01",
-                  "signal_time": "2026-10-01T18:10:00+00:00", "stop_atr": 2.0,
-                  "trailing": {"activation_atr": 1.0, "distance_atr": 1.5, "enabled": True}},
+                  "signal_time": "2026-10-01T17:00:00+00:00", "stop_atr": 4.0,
+                  "trailing": {"activation_atr": 3.0, "distance_atr": 5.0, "enabled": True}},
         "exit_plan": {"cancel_stop_at": "2026-10-02T13:29:00+00:00",
                       "flatten_at": "2026-10-02T13:30:00+00:00", "rule": "next_rth_open"},
         "leg": "drift", "position": "long", "protective_stop": None,
@@ -47,9 +47,9 @@ class SignalContractTests(unittest.TestCase):
                          (1, "long", 1, "drift", "202612"))
         self.assertIsNone(signal.stop)
         self.assertIsNone(signal.entry.reference_price)
-        self.assertEqual(signal.entry.deadline, datetime(2026, 10, 1, 18, 11, 7, 157008, tzinfo=UTC))
+        self.assertEqual(signal.entry.deadline, datetime(2026, 10, 1, 17, 1, 7, 157008, tzinfo=UTC))
         self.assertEqual(signal.exit_plan.cancel_stop_at, datetime(2026, 10, 2, 13, 29, tzinfo=UTC))
-        self.assertEqual(signal.trade_key, "2026-10-01T18:10:00+00:00|drift|long")
+        self.assertEqual(signal.trade_key, "2026-10-01T17:00:00+00:00|drift|long")
         self.assertEqual(signal.payload, EXAMPLE_ENTRY)
 
     def test_flat_targets_and_off_tick_stops(self) -> None:
@@ -68,7 +68,7 @@ class SignalContractTests(unittest.TestCase):
             "month": dict(good, instrument=dict(good["instrument"], contract_month="2026-12")),
             "exchange": dict(good, instrument=dict(good["instrument"], exchange="EUREX")),
             "stop": dict(good, target=dict(good["target"], protective_stop={"price": -1})),
-            "naive time": dict(good, emitted_at="2026-10-01T18:10:07"),
+            "naive time": dict(good, emitted_at="2026-10-01T17:00:07"),
         }
         for name, value in cases.items():
             with self.assertRaises(SignalError, msg=name):

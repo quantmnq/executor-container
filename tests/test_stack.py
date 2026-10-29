@@ -162,6 +162,16 @@ class StackTests(unittest.TestCase):
             self.assertEqual(self.wizard.start(), 0)
         self.assertEqual(self.calls, [("start", ())])
 
+    def test_balance_start_confirmation_names_the_fraction(self):
+        with self.setup_environment(["paper", "DU1234567", "balance", "0.5", "", "", "", "", "later"]):
+            self.wizard.setup()
+        self.calls.clear()
+        with self.setup_environment(["START PAPER 1 MNQ"]):
+            self.assertEqual(self.wizard.start(), 3)
+        with self.setup_environment(["START PAPER BALANCE 0.5"]):
+            self.assertEqual(self.wizard.start(), 0)
+        self.assertEqual(self.calls, [("start", ())])
+
     def test_changed_image_is_not_silently_upgraded(self):
         private_write(self.wizard.pin, "sha256:" + "c" * 64)
         with (patch.object(gateway_docker, "command") as docker,

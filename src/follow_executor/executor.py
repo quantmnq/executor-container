@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import queue
 import ssl
 import threading
@@ -16,6 +17,8 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from .broker import (
+    BOOK_ROOTS,
+    MULTIPLIERS,
     Broker,
     BrokerState,
     FutureContract,
@@ -32,7 +35,7 @@ from .engine import (
     Modify,
     Place,
     View,
-    decide,
+    decide_book,
     desired_stop,
     exit_request,
     stop_request,
@@ -40,6 +43,7 @@ from .engine import (
 from .journal import Journal
 from .protection import ProtectionWatch
 from .signal import Heartbeat, SignalError, Target, parse_target
+from .sizing import balance_base, book_label, leg_units, split
 
 LOGGER = logging.getLogger(__name__)
 ACK_TIMEOUT = timedelta(seconds=5)
@@ -48,6 +52,8 @@ MISMATCH_GRACE = timedelta(seconds=5)
 REFRESH_INTERVAL = timedelta(seconds=30)
 RECONNECT_INTERVAL = timedelta(seconds=10)
 STATE_ACK_INTERVAL = timedelta(seconds=60)
+NET_LIQUIDATION_MAX_AGE = timedelta(seconds=60)
+BALANCE_TRADES_KEPT = 100
 
 
 def utc_now() -> datetime:
@@ -61,6 +67,11 @@ def public_ack(kind: str, detail: dict[str, Any]) -> tuple[str, dict[str, Any]]:
         code = "local_check_failed"
         for prefix, name in (
             ("entry deadline", "entry_deadline_passed"),
+            ("signal carries no leader sizing", "sizing_missing"),
+            ("balance sizing", "sizing_unavailable"),
+            ("balance base is 0", "balance_too_small"),
+            ("size rounds to 0", "size_rounds_to_zero"),
+            ("order quantity", "quantity_limit"),
             ("stop risk", "stop_risk_limit"),
             ("initial margin", "margin_limit"),
             ("margin check unavailable", "margin_unavailable"),
@@ -185,8 +196,10 @@ class Executor:
         self.target = self._load_target()
         self.last_heartbeat_at: datetime | None = None
         self._lock = threading.Lock()
-        self._contracts: dict[str, FutureContract] = {}
-        self._margin: dict[tuple[int, str], tuple[datetime, MarginEstimate]] = {}
+        self._contracts: dict[tuple[str, str], FutureContract] = {}
+        self._margin: dict[tuple[int, str, int], tuple[datetime, MarginEstimate]] = {}
+        self._net_liquidation_cache: tuple[datetime, float] | None = None
+        self._net_liquidation_warmed = datetime.min.replace(tzinfo=UTC)
         self._mismatch_since: datetime | None = None
         self._rejection_seq = int(journal.get_state("rejection_seq") or 0)
         self._next_connect = datetime.min.replace(tzinfo=UTC)
@@ -333,14 +346,23 @@ class Executor:
             # An unexplained position is never traded: either our own fill report
             # catches up within the grace, or the executor halts.
             return []
-        view = self._view(state, now)
-        actions = self._protect(view) if halt is not None else decide(view)
+        sized: list[Action] = []
+        if halt is None and self.config.sizing is not None:
+            refusal = self._size_entry(state, now)
+            if refusal is not None:
+                self._execute(refusal, now)
+                sized.append(refusal)
+        views = self._views(state, now)
+        if halt is not None:
+            actions = [action for view in views for action in self._protect(view)]
+        else:
+            actions = self._screen_entries(decide_book(views), now)
         for action in actions:
             self._execute(action, now)
         if halt is None and not actions:
-            self._warm_margin(view, now)
-        self._state_ack(view, now, halt)
-        return actions
+            self._warm_margin(views, now)
+        self._state_ack(views, now, halt)
+        return sized + actions
 
     def _observe_health(self) -> None:
         if self.notifications is None:
@@ -356,9 +378,10 @@ class Executor:
             contracts = {con_id: state.contracts[con_id] for con_id, quantity in state.positions.items()
                          if quantity and con_id in state.contracts}
             target = self.target
-            current = self._contracts.get(target.contract_month) if target is not None else None
-            if current is not None:
-                contracts[current.con_id] = current
+            for root in self.config.roots:
+                current = self._contracts.get((root, target.contract_month)) if target is not None else None
+                if current is not None:
+                    contracts[current.con_id] = current
             self.broker.monitor_market_data(list(contracts.values()))
             health = self.broker.health()
             market = health["market_data"]
@@ -420,13 +443,19 @@ class Executor:
 
     def _absorb(self, state: BrokerState, now: datetime) -> None:
         purposes = {oid: order.purpose for oid, order in state.orders.items() if order.purpose}
+        filled = False
         for execution in state.executions:
             if not execution.order_ref.startswith("fx:"):
                 continue
             if self.journal.record_execution(execution):
+                filled = True
                 purpose = execution.order_ref.split(":")[1] if ":" in execution.order_ref else None
-                LOGGER.info("fill: %s %s %s @ %s", purpose, execution.side, execution.quantity, execution.price)
+                contract = state.contracts.get(execution.con_id)
+                LOGGER.info("fill: %s %s %s %s @ %s", purpose, execution.side, execution.quantity,
+                            contract.root if contract else "", execution.price)
                 self.acks.send("filled", self._seq(), {"purpose": purpose})
+        if filled and self.config.sizing is not None:
+            LOGGER.info("position: %s", self.book(state))
         for order_id, order in state.orders.items():
             if order.purpose and order.client_id == self.config.ibkr.client_id:
                 self.journal.set_order_status(order_id, order.status)
@@ -468,12 +497,13 @@ class Executor:
                 self.pending.pop(order_id)
 
     def _integrity(self, state: BrokerState, now: datetime) -> str | None:
+        label = "/".join(self.config.roots)
         for order in state.orders.values():
             if order.working and (order.purpose is None or order.client_id != self.config.ibkr.client_id):
-                return f"order {order.order_id} on {self.config.root} was not placed by this executor"
+                return f"order {order.order_id} on {label} was not placed by this executor"
         held = {con_id: qty for con_id, qty in state.positions.items() if qty}
-        if len(held) > 1:
-            return f"positions in more than one {self.config.root} contract: {held}"
+        if len(held) > 1 and not self._one_book(state, held):
+            return f"positions in more than one {label} contract: {held}"
         expected = self.journal.expected_positions()
         if held == expected:
             self._mismatch_since = None
@@ -483,6 +513,14 @@ class Executor:
         elif now - self._mismatch_since > MISMATCH_GRACE:
             return f"broker position {held} differs from the executor's record {expected}"
         return None
+
+    def _one_book(self, state: BrokerState, held: dict[int, int]) -> bool:
+        """Balance sizing holds exactly one NQ and one MNQ position of one month."""
+        if self.config.sizing is None or len(held) != 2:
+            return False
+        contracts = [state.contracts.get(con_id) for con_id in held]
+        return (all(contracts) and sorted(c.root for c in contracts) == sorted(BOOK_ROOTS)
+                and len({c.contract_month for c in contracts}) == 1)
 
     def _waiting(self, now: datetime) -> bool:
         for order_id, pending in list(self.pending.items()):
@@ -654,6 +692,10 @@ class Executor:
                  and order.order_type == "MKT" and order.remaining == abs(position)]
         keep_exit = exits[0].order_id if len(exits) == 1 else None
         cancel = [order for order in working if order.order_id != keep_exit]
+        if self.config.sizing is not None:
+            # The book's other contract keeps its own stop or exit while it holds.
+            cancel = [order for order in cancel if order.con_id == con_id or order.purpose == "entry"
+                      or not state.positions.get(order.con_id)]
         if cancel:
             actions: list[Action] = []
             for order in cancel:
@@ -690,7 +732,7 @@ class Executor:
         position_contract = None if con_id is None else state.contracts.get(con_id)
         target_contract = None
         if target is not None and target.direction and target.contract_month:
-            target_contract = self._contract(target.contract_month)
+            target_contract = self._contract(self.config.root, target.contract_month)
         ours = [
             order
             for order in state.orders.values()
@@ -717,6 +759,51 @@ class Executor:
             entry_price=entry_price,
         )
 
+    def _views(self, state: BrokerState, now: datetime) -> list[View]:
+        """One view per traded contract: the fixed root, or the NQ and MNQ book."""
+        if self.config.sizing is None:
+            return [self._view(state, now)]
+        target = self.target
+        key = target.trade_key if target is not None else None
+        roots = self._roots(state)
+        held = {con_id: qty for con_id, qty in state.positions.items() if qty}
+        ours = [
+            order
+            for order in state.orders.values()
+            if order.working and order.purpose and order.client_id == self.config.ibkr.client_id
+        ]
+        sizes = self._book_sizes(key, held, roots)
+        order_trades = self.journal.order_trades()
+        trade_status = self.journal.trade_status(key)
+        views = []
+        for root in self.config.roots:
+            con_id, position = next(((c, q) for c, q in held.items() if roots.get(c) == root), (None, 0))
+            target_contract = None
+            # Only a contract this trade sizes is needed; a 7 MNQ book never resolves NQ.
+            if target is not None and target.direction and target.contract_month and sizes.get(root):
+                target_contract = self._contract(root, target.contract_month)
+            entry_price = self._entry_price(key, con_id) if key and con_id is not None else None
+            if entry_price is None and con_id is not None:
+                entry_price = state.average_prices.get(con_id)
+            mine = [order for order in ours if (roots.get(order.con_id) or order.root) == root]
+            views.append(View(
+                now=now,
+                target=target,
+                quantity=sizes.get(root, 0),
+                slippage_points=self.config.max_entry_slippage_points,
+                clock_exit_grace=timedelta(seconds=self.config.clock_exit_grace_seconds),
+                position=position,
+                position_contract=None if con_id is None else state.contracts.get(con_id),
+                target_contract=target_contract,
+                stops=tuple(o for o in mine if o.purpose == "stop"),
+                entries=tuple(o for o in mine if o.purpose == "entry"),
+                exits=tuple(o for o in mine if o.purpose == "exit"),
+                order_trades=order_trades,
+                trade_status=trade_status,
+                entry_price=entry_price,
+            ))
+        return views
+
     def _protect(self, view: View) -> list[Action]:
         """While halted: only repair a missing stop on a held position."""
 
@@ -729,6 +816,148 @@ class Executor:
             return []
         request = stop_request(view.position, price, view.position_contract, view.target)
         return [Place(request, view.target.trade_key)]
+
+    # Balance sizing -----------------------------------------------------------
+
+    def _roots(self, state: BrokerState) -> dict[int, str]:
+        roots = {int(con_id): root for con_id, root in
+                 json.loads(self.journal.get_state("contract_roots") or "{}").items()}
+        roots.update({con_id: contract.root for con_id, contract in state.contracts.items()})
+        return roots
+
+    def _remember_root(self, contract: FutureContract) -> None:
+        roots = json.loads(self.journal.get_state("contract_roots") or "{}")
+        if roots.get(str(contract.con_id)) != contract.root:
+            roots[str(contract.con_id)] = contract.root
+            self.journal.set_state("contract_roots", json.dumps(roots, sort_keys=True))
+
+    def book(self, state: BrokerState) -> str:
+        """The journal's expected position by root, such as ``1 NQ + 5 MNQ``."""
+        roots = self._roots(state)
+        quantities: dict[str, int] = {}
+        for con_id, quantity in self.journal.expected_positions().items():
+            root = roots.get(con_id, "?")
+            quantities[root] = quantities.get(root, 0) + quantity
+        return book_label(quantities)
+
+    def _balance_trades(self) -> dict[str, dict[str, Any]]:
+        return json.loads(self.journal.get_state("balance_trades") or "{}")
+
+    def _book_sizes(self, key: str | None, held: dict[int, int], roots: dict[int, str]) -> dict[str, int]:
+        record = self._balance_trades().get(key) if key else None
+        if record is not None:
+            return {root: int(record[root]) for root in BOOK_ROOTS}
+        # A held book under a new trade key, such as gap_drift_continuation,
+        # never resizes: each contract keeps the quantity it holds.
+        sizes: dict[str, int] = {}
+        for con_id, quantity in held.items():
+            if con_id in roots:
+                sizes[roots[con_id]] = sizes.get(roots[con_id], 0) + abs(quantity)
+        return sizes
+
+    def _entry_price(self, key: str, con_id: int) -> float | None:
+        orders = self.journal.notification_orders()
+        fills = [(item["quantity"], item["price"]) for item in self.journal.notification_executions()
+                 if item["con_id"] == con_id and orders.get(item["order_id"], {}).get("trade_key") == key
+                 and orders[item["order_id"]]["purpose"] == "entry"]
+        total = sum(quantity for quantity, _ in fills)
+        return sum(quantity * price for quantity, price in fills) / total if total else None
+
+    def _net_liquidation(self, now: datetime) -> float | None:
+        cached = self._net_liquidation_cache
+        if cached is not None and now - cached[0] <= NET_LIQUIDATION_MAX_AGE:
+            return cached[1]
+        try:
+            value = float(self.broker.net_liquidation())
+        except Exception as exc:  # noqa: BLE001 - sizing reuses the last base instead
+            self._warn_once("net_liquidation", f"NetLiquidation unavailable: {exc}")
+            return None
+        if not math.isfinite(value) or value <= 0:
+            return None
+        self._net_liquidation_cache = (now, value)
+        return value
+
+    def _size_entry(self, state: BrokerState, now: datetime) -> MarkTrade | None:
+        """Size a new flat entry once, before its orders, and persist the result."""
+        target = self.target
+        if target is None or not target.direction or target.entry is None or now > target.entry.deadline:
+            return None
+        key = target.trade_key
+        assert key is not None
+        if self.journal.trade_status(key) is not None or key in self._balance_trades():
+            return None
+        if (any(state.positions.values()) or self.journal.expected_positions()
+                or any(order.working and order.purpose == "entry" for order in state.orders.values())):
+            return None
+        quantities, detail = self._balance_quantities(target, now)
+        if quantities is None:
+            LOGGER.warning("balance entry %s refused: %s", key, detail)
+            return MarkTrade(key, "refused", detail)
+        trades = self._balance_trades()
+        trades[key] = detail
+        for old in list(trades)[:-BALANCE_TRADES_KEPT]:
+            del trades[old]
+        self.journal.set_state("balance_trades", json.dumps(trades))
+        self.journal.log("balance_size", {"trade": key, **detail})
+        LOGGER.info("balance size for %s: %s (base %s, weight %s)", key, book_label(quantities),
+                    detail["base"], detail["weight"])
+        return None
+
+    def _balance_quantities(self, target: Target, now: datetime) -> tuple[dict[str, int] | None, Any]:
+        assert self.config.sizing is not None and target.entry is not None
+        band = target.sizing
+        if band is None:
+            return None, "signal carries no leader sizing; balance entries need its leg weight and band"
+        fraction = self.config.sizing.leverage_fraction
+        last = json.loads(self.journal.get_state("balance_base") or "null")
+        previous = None if last is None else int(last["base"])
+        equity = self._net_liquidation(now)
+        price = target.entry.reference_price
+        if equity is None or price is None:
+            missing = "NetLiquidation" if equity is None else "reference price"
+            if previous is None:
+                return None, f"balance sizing unavailable: no {missing} and no earlier balance base"
+            LOGGER.warning("%s unavailable; reusing the last balance base %s", missing, previous)
+            base = previous
+        else:
+            base = balance_base(previous, equity, price, fraction, band)
+            if base < 1:
+                return None, (f"balance base is 0 at NetLiquidation {equity:,.0f} and NQ {price:,.2f} "
+                              f"with leverage fraction {fraction:g}")
+            self.journal.set_state("balance_base", json.dumps({
+                "base": base, "trade_key": target.trade_key, "at": now.isoformat(),
+                "net_liquidation": equity, "reference_price": price, "leverage_fraction": fraction,
+            }))
+        units = leg_units(base, band.weight)
+        if units < 1:
+            # No minimum size: a leg too small for one MNQ at this base is not traded.
+            return None, (f"size rounds to 0 contracts: base {base} MNQ units x leg weight "
+                          f"{band.weight:g}")
+        quantities = split(units)
+        cap = self.config.max_quantity
+        over = [f"{quantity} {root}" for root, quantity in quantities.items() if quantity > cap]
+        if over:
+            return None, f"order quantity {' and '.join(over)} exceeds risk.max_quantity {cap}"
+        return quantities, {**quantities, "base": base, "units": units,
+                            "weight": band.weight, "net_liquidation": equity, "reference_price": price,
+                            "leverage_fraction": fraction, "at": now.isoformat()}
+
+    def _screen_entries(self, actions: list[Action], now: datetime) -> list[Action]:
+        """Check margin and stop risk once for every entry order of this decision."""
+        entries = [action for action in actions
+                   if isinstance(action, Place) and action.request.purpose == "entry"]
+        if not entries:
+            return actions
+        refusal = self._entry_refusal([action.request for action in entries], now)
+        if refusal is None:
+            return actions
+        screened: list[Action] = []
+        for action in actions:
+            if not any(action is entry for entry in entries):
+                screened.append(action)
+            elif action is entries[0]:
+                screened.append(MarkTrade(action.trade_key or "", "refused", refusal))
+        return screened
 
     # Actions ------------------------------------------------------------------
 
@@ -768,23 +997,21 @@ class Executor:
                             action.request.quantity)
             elif isinstance(action, Place):
                 request = action.request
-                if request.purpose == "entry":
-                    refusal = self._entry_refusal(request, now)
-                    if refusal is not None:
-                        self._execute(MarkTrade(action.trade_key or "", "refused", refusal), now)
-                        return
                 order_id = self.broker.place(request)
                 self._record(order_id, request, action.trade_key)
                 self.pending[order_id] = Pending("place", now, request.purpose)
                 self.acks.send("submitted", self._seq(), {"purpose": request.purpose})
-                LOGGER.info("placed %s order %s: %s %s %s x%s lmt=%s stp=%s", request.purpose, order_id,
-                            request.action, request.order_type, request.contract.contract_month,
-                            request.quantity, request.limit_price, request.stop_price)
+                LOGGER.info("placed %s order %s: %s %s %s %s x%s lmt=%s stp=%s", request.purpose, order_id,
+                            request.action, request.order_type, request.contract.root,
+                            request.contract.contract_month, request.quantity, request.limit_price,
+                            request.stop_price)
         except Exception as exc:  # noqa: BLE001 - the next step retries
             LOGGER.error("%s failed: %s", type(action).__name__, exc)
             self.journal.log("action_failed", {"action": type(action).__name__, "error": str(exc)})
 
     def _record(self, order_id: int, request: OrderRequest, trade_key: str | None) -> None:
+        if self.config.sizing is not None:
+            self._remember_root(request.contract)
         self.journal.record_order(
             order_id,
             trade_key=trade_key,
@@ -802,27 +1029,36 @@ class Executor:
 
     # Margin and risk ------------------------------------------------------------
 
-    def _entry_refusal(self, request: OrderRequest, now: datetime) -> str | None:
+    def _entry_refusal(self, requests: list[OrderRequest], now: datetime) -> str | None:
+        """Stop risk and initial margin of every entry order together, before any is sent."""
         target = self.target
         entry = target.entry if target is not None else None
         limit = self.config.max_stop_risk_usd
         if limit is not None and entry is not None and entry.atr and entry.stop_atr:
-            risk = request.quantity * self.config.multiplier * entry.atr * entry.stop_atr
+            risk = sum(request.quantity * MULTIPLIERS[request.contract.root] for request in requests
+                       ) * entry.atr * entry.stop_atr
             if risk > limit:
                 return f"stop risk ${risk:,.0f} exceeds max_stop_risk_usd ${limit:,.0f}"
-        estimate = self._margin_estimate(request, now, allow_stale=False)
-        if estimate is None:
+        estimates = [self._margin_estimate(request, now, allow_stale=False) for request in requests]
+        if any(estimate is None for estimate in estimates):
             return "margin check unavailable"
-        ceiling = self.config.max_margin_fraction * estimate.equity_with_loan_after
-        if estimate.init_margin_after > ceiling:
+        first, *others = estimates
+        assert first is not None
+        # Each what-if sees the account without the other order; add the others'
+        # increments, or their whole margin when IBKR omits the figure before.
+        init_after = first.init_margin_after + sum(
+            other.init_margin_after - (other.init_margin_before or 0.0) for other in others if other)
+        equity = min(estimate.equity_with_loan_after for estimate in estimates if estimate)
+        ceiling = self.config.max_margin_fraction * equity
+        if init_after > ceiling:
             return (
-                f"initial margin after entry {estimate.init_margin_after:,.0f} exceeds "
-                f"{self.config.max_margin_fraction:.0%} of equity {estimate.equity_with_loan_after:,.0f}"
+                f"initial margin after entry {init_after:,.0f} exceeds "
+                f"{self.config.max_margin_fraction:.0%} of equity {equity:,.0f}"
             )
         return None
 
     def _margin_estimate(self, request: OrderRequest, now: datetime, *, allow_stale: bool) -> MarginEstimate | None:
-        key = (request.contract.con_id, request.action)
+        key = (request.contract.con_id, request.action, request.quantity)
         cached = self._margin.get(key)
         max_age = timedelta(seconds=self.config.margin_check_max_age_seconds)
         if cached is not None and (allow_stale or now - cached[0] <= max_age):
@@ -835,35 +1071,44 @@ class Executor:
         self._margin[key] = (now, estimate)
         return estimate
 
-    def _warm_margin(self, view: View, now: datetime) -> None:
+    def _warm_margin(self, views: list[View], now: datetime) -> None:
         target = self.target
-        if view.position or target is None or not target.contract_month:
+        if any(view.position for view in views) or target is None or not target.contract_month:
             return
         if target.direction and target.entry is not None and now <= target.entry.deadline:
             return
-        contract = self._contract(target.contract_month)
+        if self.config.sizing is not None:
+            # Quantities are only known at the entry; keep NetLiquidation fresh instead,
+            # at most every 30 s even while IBKR cannot report it.
+            if now - self._net_liquidation_warmed >= NET_LIQUIDATION_MAX_AGE / 2:
+                self._net_liquidation_warmed = now
+                self._net_liquidation_cache = None
+                self._net_liquidation(now)
+            return
+        contract = self._contract(self.config.root, target.contract_month)
         if contract is None:
             return
         max_age = timedelta(seconds=self.config.margin_check_max_age_seconds)
         for action in ("BUY", "SELL"):
-            cached = self._margin.get((contract.con_id, action))
+            key = (contract.con_id, action, self.config.quantity)
+            cached = self._margin.get(key)
             if cached is None or now - cached[0] > max_age / 2:
                 request = OrderRequest("entry", contract, action, "MKT", self.config.quantity, "fx:whatif:0")
-                self._margin.pop((contract.con_id, action), None)
+                self._margin.pop(key, None)
                 self._margin_estimate(request, now, allow_stale=False)
                 return
 
     # Helpers ----------------------------------------------------------------------
 
-    def _contract(self, month: str) -> FutureContract | None:
-        if month in self._contracts:
-            return self._contracts[month]
+    def _contract(self, root: str, month: str) -> FutureContract | None:
+        if (root, month) in self._contracts:
+            return self._contracts[(root, month)]
         try:
-            contract = self.broker.resolve(self.config.root, month)
+            contract = self.broker.resolve(root, month)
         except Exception as exc:  # noqa: BLE001 - retried on the next step
-            self._warn_once(f"resolve:{month}", f"cannot resolve {self.config.root} {month}: {exc}")
+            self._warn_once(f"resolve:{root}:{month}", f"cannot resolve {root} {month}: {exc}")
             return None
-        self._contracts[month] = contract
+        self._contracts[(root, month)] = contract
         return contract
 
     def _halt(self, reason: str) -> None:
@@ -888,12 +1133,14 @@ class Executor:
             self.notifications.status("signal_feed", "unavailable" if stale else "ready", now,
                                       announce_initial=stale)
 
-    def _state_ack(self, view: View, now: datetime, halt: str | None) -> None:
+    def _state_ack(self, views: list[View], now: datetime, halt: str | None) -> None:
         if now < self._next_state_ack:
             return
         self._next_state_ack = now + STATE_ACK_INTERVAL
-        held = "flat" if view.position == 0 else ("long" if view.position > 0 else "short")
-        wanted = view.target.position if view.target is not None else "flat"
+        position = sum(view.position for view in views)
+        held = "flat" if position == 0 else ("long" if position > 0 else "short")
+        target = views[0].target
+        wanted = target.position if target is not None else "flat"
         age = None if self.last_heartbeat_at is None else round((now - self.last_heartbeat_at).total_seconds(), 1)
         self.acks.send("state", self._seq(), {"position": held, "matches_target": held == wanted,
                                               "halted": halt is not None, "heartbeat_age_seconds": age})

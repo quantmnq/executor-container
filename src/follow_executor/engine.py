@@ -15,11 +15,17 @@ Trade statuses, per leader trade (``Target.trade_key``):
 
 Any status blocks a new entry for that trade, so a follower never re-enters a
 trade it has left.
+
+With balance sizing one trade is a book of two contracts, NQ plus an MNQ
+remainder of the same month. ``decide_book`` runs ``decide`` for each contract
+at its own size, so each holds its own stop and exits, and reports trade
+statuses once for the whole book.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from collections.abc import Sequence
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 
 from .broker import ORDER_REF_PREFIX, FutureContract, OrderRequest, OrderView
@@ -203,7 +209,7 @@ def decide(view: View) -> list[Action]:
             return actions
         if target.entry is None or view.now > target.entry.deadline:
             return actions + [MarkTrade(key, "missed", "entry deadline passed")]
-        if view.target_contract is None:
+        if view.target_contract is None or view.quantity < 1:
             return actions
         return actions + [
             MarkTrade(key, "entering", "entry"),
@@ -239,4 +245,35 @@ def decide(view: View) -> list[Action]:
         actions.append(
             Modify(stop.order_id, stop_request(position, price, contract, target, stop.order_ref))
         )
+    return actions
+
+
+def _busy(view: View) -> bool:
+    return bool(view.position or view.stops or view.entries or view.exits)
+
+
+def decide_book(views: Sequence[View]) -> list[Action]:
+    """Decide each contract of one book; mark the trade once for all of them.
+
+    A flat book enters only when every sized contract is resolved, so both
+    orders come from the same decision. The trade is ``closed`` only when no
+    contract holds a position or a working order.
+    """
+
+    if len(views) == 1:
+        return decide(views[0])
+    if (not any(view.position or view.entries for view in views)
+            and any(view.quantity and view.target_contract is None for view in views)):
+        views = [replace(view, target_contract=None) for view in views]
+    active = [view for view in views if view.quantity or _busy(view)] or list(views[:1])
+    busy = any(_busy(view) for view in views)
+    actions: list[Action] = []
+    marked: set[tuple[str, str]] = set()
+    for view in active:
+        for action in decide(view):
+            if isinstance(action, MarkTrade):
+                if (action.trade_key, action.status) in marked or (action.status == "closed" and busy):
+                    continue
+                marked.add((action.trade_key, action.status))
+            actions.append(action)
     return actions

@@ -13,6 +13,8 @@ WORKING_STATUSES = frozenset(
     {"ApiPending", "PendingSubmit", "PreSubmitted", "Submitted", "PendingCancel"}
 )
 MULTIPLIERS = {"NQ": 20.0, "MNQ": 2.0}
+# Balance sizing trades one book: NQ plus an MNQ remainder of the same month.
+BOOK_ROOTS = ("NQ", "MNQ")
 
 
 @dataclass(frozen=True)
@@ -118,6 +120,7 @@ class MarginEstimate:
     init_margin_after: float
     equity_with_loan_after: float
     warning: str = ""
+    init_margin_before: float | None = None
 
 
 class Broker(Protocol):
@@ -144,3 +147,6 @@ class Broker(Protocol):
     def cancel(self, order_id: int) -> None: ...
 
     def what_if(self, request: OrderRequest) -> MarginEstimate: ...
+
+    def net_liquidation(self) -> float:
+        """The configured account's NetLiquidation in USD; raises when unavailable."""

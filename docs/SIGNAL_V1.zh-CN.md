@@ -32,7 +32,7 @@
   "schema": "signal.v1",
   "stream": "sessioncycle.mnq",
   "seq": 2,
-  "emitted_at": "2026-10-01T18:10:09.150110+00:00",
+  "emitted_at": "2026-10-01T17:00:09.150110+00:00",
   "cause": "protective_stop_installed",
   "instrument": {"root": "MNQ", "exchange": "CME", "currency": "USD",
                  "contract_month": "202612", "last_trade_date": "20261218"},
@@ -40,26 +40,39 @@
     "position": "long",
     "leg": "drift",
     "entry": {"session": "2026-10-01",
-              "signal_time": "2026-10-01T18:10:00+00:00",
-              "deadline": "2026-10-01T18:11:07.157008+00:00",
-              "reference_price": null, "atr": 20.25,
-              "stop_atr": 2.0,
-              "trailing": {"enabled": true, "activation_atr": 1.0, "distance_atr": 1.5}},
+              "signal_time": "2026-10-01T17:00:00+00:00",
+              "deadline": "2026-10-01T17:01:07.157008+00:00",
+              "reference_price": null, "atr": 20.0,
+              "stop_atr": 4.0,
+              "trailing": {"enabled": true, "activation_atr": 3.0, "distance_atr": 5.0}},
     "protective_stop": {"price": 30452.75},
     "exit_plan": {"rule": "next_rth_open",
-                  "cancel_stop_at": "2026-10-02T13:29:00+00:00",
-                  "flatten_at": "2026-10-02T13:30:00+00:00"}
+                  "cancel_stop_at": "2026-10-02T13:27:00+00:00",
+                  "flatten_at": "2026-10-02T13:28:00+00:00",
+                  "minutes_before_open": "2"},
+    "sizing": {"weight": 0.5, "target_leverage": 6.0,
+               "add_max_leverage": 5.88, "hold_max_leverage": 6.6}
   }
 }
 ```
 
+示例中的时间和数值仅作说明，并非领单方的参数；请按每个信号中的值执行。
+
 - `position` 为 `flat`（空仓）、`long`（多头）或 `short`（空头）。空仓目标不包含策略分支、入场信息、止损或退出计划。
-- **不包含数量。** 你自行选择 `contract_month` 对应的 NQ 或 MNQ 合约，以及自己的合约数量。两者都使用相同的指数点数报价，最小变动单位均为 0.25 点，因此信号中的价格适用于两者。
+- **不包含数量。** 你自行选择 `contract_month` 对应的 NQ 或 MNQ 合约及数量，或按下文的 `sizing` 计算数量。两者都使用相同的指数点数报价，最小变动单位均为 0.25 点，因此信号中的价格适用于两者。
 - `entry.deadline`：超过该时间后，空仓的跟单端不得再建立本次持仓。延迟加入不会触发过期交易的入场。
 - `entry.reference_price`：领单方已完成的决策 K 线对应的 NQ 收盘价，用于限制你的入场价格。如果该持仓是领单方接管的已有持仓，而非自行新建，该值为 null。2026-10-02 之前的所有实盘入场信号中，该值也为 null。
 - `entry.atr` × `entry.stop_atr`：领单方相对于自己的成交价计算的止损距离。在领单方的绝对止损价尚未到达时，可使用该距离。
 - `protective_stop.price`：领单方的绝对止损价。在领单方入场成交信息明确前，以及开盘前撤销止损后，该值为 null。跟单端应将止损移至该价格，无论是上调还是下调。
-- `exit_plan`：领单方按时钟执行的退出计划，也是在信号流断开时使用的备用方案。`next_rth_open` 表示在 `cancel_stop_at` 撤销止损，在 `flatten_at` 平仓；`session_close` 表示在 `flatten_at` 平仓。
+- `exit_plan`：领单方按时钟执行的退出计划，也是在信号流断开时使用的备用方案。
+  - `next_rth_open` 表示在 `cancel_stop_at` 撤销止损，一分钟后在 `flatten_at` 平仓，时间略早于下一个美东 09:30 常规开盘；`minutes_before_open` 为平仓时间距该开盘的分钟数（字符串）。`before_next_rth_open` 是领单方曾短暂发布的等价名称；0.3.0 起的跟单端两者都接受，领单方发送 `next_rth_open`，使 0.2.0 跟单端继续正常工作。
+  - `session_close` 表示在 `flatten_at` 平仓。
+  - 始终按 `cancel_stop_at` 和 `flatten_at` 执行；`minutes_before_open` 仅供参考。
+- `sizing`：在领单方当前的仓位方式下，所有非空仓目标都带有该对象；空仓目标和更早的事件没有它。
+  - `weight`：本次交易的权重，大于 0 且不超过 1。每个信号都带有该笔交易的 `sizing.weight`，跟单端使用收到的权重。
+  - `target_leverage`、`add_max_leverage`、`hold_max_leverage`：领单方的余额杠杆区间，目前为 6 倍，加仓上限 5.88 倍，重置上限 6.6 倍。
+  - 一个单位为一张 MNQ（每指数点 2 美元）；一张 NQ 等于十个单位。领单方的基准为 `floor(6 × NetLiquidation / (2 × NQ 价格))` 个单位，并在该区间内保持；每笔交易为 `round(基准 × weight)` 个单位（取整为 0 时不交易），即 `units // 10` 张 NQ 加 `units % 10` 张 MNQ。
+  - 忽略未知字段的跟单端（包括 0.2.0）不受影响。
 
 ## 事件原因
 
@@ -70,7 +83,7 @@
 | `protective_stop_tightened` | 移动止损调整 |
 | `gap_drift_continuation` | 已持有的 Gap 多头转为 Drift：保留同一持仓，更新策略分支、入场信息、止损和退出计划；空仓的跟单端会获得新的入场截止时间 |
 | `continuation_stop_repriced` | 延续交易的止损价发生变化 |
-| `preopen_stop_cancelled` | 在常规交易时段开盘前一分钟撤销止损 |
+| `preopen_stop_cancelled` | 在 `cancel_stop_at`（常规交易时段开盘前）撤销止损 |
 | `exit_started`, `exit` | 目标为空仓 |
 | `reconciled` | 状态校正，例如领单方止损成交后的校正 |
 

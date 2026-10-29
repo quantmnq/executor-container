@@ -9,6 +9,7 @@ from pathlib import Path
 
 from executor_support import (
     ATR,
+    STOP_ATR,
     T0,
     Clock,
     FakeBroker,
@@ -67,7 +68,7 @@ class DriftLifecycleTests(ExecutorTestCase):
         self.assertEqual(self.position(), 2)
         self.assertEqual(self.status(entry), "entered")
         (stop,) = self.broker.working("stop")
-        self.assertEqual(stop.stop_price, round_down(self.broker.market - ATR * 11.5))
+        self.assertEqual(stop.stop_price, round_down(self.broker.market - ATR * STOP_ATR))
 
         self.executor.on_signal(target(2, "protective_stop_installed", stop=30452.75))
         self.settle()
@@ -144,11 +145,11 @@ class EntryGuardTests(ExecutorTestCase):
         self.assertEqual(self.status(entry), "refused")
 
     def test_stop_risk_ceiling_refuses_the_entry(self) -> None:
-        self.make(risk={"max_quantity": 10, "max_stop_risk_usd": 1000})
+        self.make(risk={"max_quantity": 10, "max_stop_risk_usd": 300})
         entry = target(1, "entry")
         self.executor.on_signal(entry)
         self.settle()
-        self.assertEqual(self.status(entry), "refused")  # 2 MNQ x $2 x 327 points = $1,309
+        self.assertEqual(self.status(entry), "refused")  # 2 MNQ x $2 x 80 points = $320
 
     def test_margin_estimate_is_cached_between_entries(self) -> None:
         self.executor.on_signal(target(1, "entry"))
@@ -277,8 +278,8 @@ class FeedLossTests(ExecutorTestCase):
 
 class ContinuationTests(ExecutorTestCase):
     def test_gap_to_drift_keeps_the_long_and_moves_the_stop(self) -> None:
-        plan = {"rule": "session_close", "flatten_at": "2026-10-01T19:55:00+00:00"}
-        gap_time = datetime(2026, 10, 1, 13, 35, tzinfo=UTC)
+        plan = {"rule": "session_close", "flatten_at": "2026-10-01T17:00:00+00:00"}
+        gap_time = datetime(2026, 10, 1, 14, 0, tzinfo=UTC)
         self.clock.now = gap_time + timedelta(seconds=7)
         gap = target(1, "entry", leg="gap", plan=plan, signal_time=gap_time, emitted=self.clock.now)
         self.executor.on_signal(gap)
@@ -286,7 +287,7 @@ class ContinuationTests(ExecutorTestCase):
         self.executor.on_signal(target(2, "protective_stop_installed", leg="gap", plan=plan,
                                        signal_time=gap_time, emitted=self.clock.now, stop=30300.0))
         self.settle()
-        self.clock.now = datetime(2026, 10, 1, 19, 55, 7, tzinfo=UTC)
+        self.clock.now = datetime(2026, 10, 1, 17, 0, 7, tzinfo=UTC)
         self.settle(2)
         self.assertEqual(self.position(), 2)
         drift = target(3, "gap_drift_continuation", stop=30100.0, emitted=self.clock.now)
@@ -296,7 +297,7 @@ class ContinuationTests(ExecutorTestCase):
         self.assertEqual(self.broker.working("stop")[0].stop_price, 30100.0)
         self.assertEqual(self.broker.placed("exit"), [])
         self.assertEqual(self.status(drift), "entered")
-        self.clock.now = datetime(2026, 10, 1, 19, 56, tzinfo=UTC)
+        self.clock.now = datetime(2026, 10, 1, 17, 1, tzinfo=UTC)
         self.settle(2)
         self.assertEqual(self.position(), 2)
 

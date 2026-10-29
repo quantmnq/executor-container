@@ -23,11 +23,14 @@ exit. A new installation does not automatically adopt existing manual positions.
 
 ## Settings and risk limits
 
-`./follow configure` reruns the instrument/quantity wizard if config exists.
+`./follow configure` or `./follow settings` without options reruns the sizing
+wizard if config exists: `balance` with a leverage fraction (previewing the
+NQ/MNQ split at example weights at IBKR NetLiquidation), or a fixed `MNQ`/`NQ` quantity.
+`./follow settings --leverage-fraction 0.5` or
 `./follow settings --root MNQ --quantity 2` does the same from the command line.
 The service must be stopped and Gateway must be reachable and logged in.
 Existing positions, working orders, incomplete broker snapshots or a halt refuse
-the change. Switching roots checks both MNQ and NQ. The journal is preserved,
+the change. Switching roots, or to or from balance sizing, checks both MNQ and NQ. The journal is preserved,
 including finished trades, so a setting change does not erase replay protection.
 
 Default maximum quantity is 10 contracts (hard maximum 100). To change the cap,

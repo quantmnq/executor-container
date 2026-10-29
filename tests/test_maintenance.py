@@ -181,6 +181,58 @@ class MaintenanceTests(unittest.TestCase):
             maintenance.switch(self.new, self.old.release)
         commands.assert_not_called()
 
+    @contextlib.contextmanager
+    def older_release(self, *, journal="same compatible test bytes"):
+        from follow_executor.release import verify_release
+
+        def versions(path):
+            result = verify_release(path)
+            if path == self.old.release:
+                result["compatibility"].update(config="reviewed config", local="reviewed local")
+                result["compatibility"]["journal"] = hashlib.sha256(journal.encode()).hexdigest()
+            return result
+
+        same = hashlib.sha256(b"same compatible test bytes").hexdigest()
+        reviewed = {"0.2.0": {"config": "reviewed config", "local": "reviewed local"}}
+        with patch.object(maintenance, "verify_release", side_effect=versions), \
+                patch.object(maintenance, "REVIEWED_MIGRATIONS", reviewed), \
+                patch.object(maintenance, "SHARED_MODULES", ("journal", "gateway", "gateway_docker")):
+            self.assertEqual(verify_release(self.new.release)["compatibility"]["journal"], same)
+            yield
+
+    def test_reviewed_older_release_upgrades_and_rolls_back_only_with_a_fixed_size(self):
+        with self.older_release(), self.environment(["UPGRADE PAPER 1 MNQ"]):
+            self.assertEqual(maintenance.switch(self.new, self.old.release), 0)
+        self.assertEqual(self.old.pin.read_text().strip(), self.new.image_metadata()["id"])
+        fixed = self.old.config.read_text()
+        raw = json.loads(fixed)
+        raw.pop("instrument")
+        raw["sizing"] = {"mode": "balance", "leverage_fraction": 0.5}
+        private_write(self.old.config, json.dumps(raw))
+        with self.older_release(), self.environment([]) as commands, \
+                self.assertRaisesRegex(ConfigError, "cannot read balance sizing"):
+            maintenance.switch(self.new, rollback=True)
+        commands.assert_not_called()
+        private_write(self.old.config, fixed)
+        with self.older_release(), self.environment(["ROLLBACK PAPER 1 MNQ"]):
+            self.assertEqual(maintenance.switch(self.new, rollback=True), 0)
+        self.assertEqual(self.old.pin.read_text().strip(), self.old.image_metadata()["id"])
+
+    def test_unreviewed_configuration_or_changed_journal_code_is_refused(self):
+        with self.older_release(journal="older journal code"), self.environment([]) as commands, \
+                self.assertRaisesRegex(ConfigError, "reviewed migration"):
+            maintenance.switch(self.new, self.old.release)
+        commands.assert_not_called()
+        with self.older_release(), patch.object(maintenance, "REVIEWED_MIGRATIONS", {}), \
+                self.environment([]), self.assertRaisesRegex(ConfigError, "reviewed migration"):
+            maintenance.switch(self.new, self.old.release)
+
+    def test_reviewed_list_names_the_published_release(self):
+        self.assertEqual(set(maintenance.REVIEWED_MIGRATIONS), {"0.2.0"})
+        for digests in maintenance.REVIEWED_MIGRATIONS.values():
+            self.assertEqual(set(digests), {"config", "local"})
+            self.assertTrue(all(len(value) == 64 for value in digests.values()))
+
     @unittest.skipUnless(hasattr(os, "fork"), "Linux crash recovery test")
     def test_process_kill_after_durable_marker_can_restore_without_journal_rewind(self):
         original = journal_snapshot(self.config)
