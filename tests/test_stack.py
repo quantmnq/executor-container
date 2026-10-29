@@ -109,6 +109,42 @@ class StackTests(unittest.TestCase):
         self.assertEqual([action for action, _ in self.calls], ["install", "check"])
         self.assertEqual(before, {path: path.read_bytes() for path in paths})
 
+    def test_recovery_password_typo_retries_without_aborting_setup(self):
+        with (self.setup_environment(self.first_setup()) as output,
+              patch("getpass.getpass", side_effect=["test-token", "too-long-password",
+                    "vnc-pass", "mismatch", "vnc-pass", "vnc-pass", "test-user", "test-password"])):
+            self.assertEqual(self.wizard.setup(), 0)
+        self.assertTrue(self.wizard.gateway_unit.exists())
+        self.assertEqual((self.wizard.gateway_dir / "vnc.password").read_text(), "vnc-pass\n")
+        self.assertNotIn("start", [action for action, _ in self.calls])
+        for secret in ("test-token", "too-long-password", "vnc-pass", "mismatch", "test-user", "test-password"):
+            self.assertNotIn(secret, output.getvalue())
+
+    def test_cancelled_gateway_setup_reports_missing_step_and_resumes_saved_account(self):
+        with (self.setup_environment(self.first_setup()),
+              patch("getpass.getpass", side_effect=["test-token", "too-long-password", KeyboardInterrupt]),
+              self.assertRaises(KeyboardInterrupt)):
+            self.wizard.setup()
+        config = self.wizard.current_config()
+        paths = [self.wizard.config, config.token_path, config.journal_path]
+        before = {path: path.read_bytes() for path in paths}
+        self.assertFalse((self.wizard.gateway_dir / "gateway.json").exists())
+        self.assertFalse(self.wizard.gateway_unit.exists())
+        self.calls.clear()
+        with self.setup_environment([]) as output:
+            self.wizard.doctor()
+            with self.assertRaisesRegex(ConfigError, r"Gateway configuration \(step 4/5\)"):
+                self.wizard.start()
+        self.assertIn("Executor configuration: saved", output.getvalue())
+        self.assertIn("Gateway configuration: needs setup (step 4/5)", output.getvalue())
+        self.assertIn("Gateway service definition: missing (step 4/5)", output.getvalue())
+        self.assertEqual(self.calls, [])
+        with (self.setup_environment(["", "", "", ""]),
+              patch("getpass.getpass", side_effect=["vnc-pass", "vnc-pass", "test-user", "test-password"])):
+            self.assertEqual(self.wizard.setup(), 0)
+        self.assertEqual(before, {path: path.read_bytes() for path in paths})
+        self.assertEqual([action for action, _ in self.calls], ["install", "check"])
+
     def test_failed_readiness_does_not_start_or_reset_and_can_retry(self):
         self.check_exit = 1
         with self.setup_environment(self.first_setup()) as output:

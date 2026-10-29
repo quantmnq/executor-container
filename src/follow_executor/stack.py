@@ -316,8 +316,16 @@ class Stack:
         self.require_idle()
         if not lingering():
             raise ConfigError("Run setup to enable services after logout and reboot.")
-        if not self.pin.exists() or not self.unit_path.exists() or not self.gateway_unit.exists():
-            raise ConfigError("Run './follow-stack setup' first.")
+        missing = [label for path, label in (
+            (self.pin, "executor image installation (step 2/5)"),
+            (self.unit_path, "executor service (step 2/5)"),
+            (self.config, "account configuration (step 3/5)"),
+            (self.gateway_dir / "gateway.json", "Gateway configuration (step 4/5)"),
+            (self.gateway_unit, "Gateway service (step 4/5)"),
+        ) if not path.exists()]
+        if missing:
+            raise ConfigError("Setup is incomplete: missing " + ", ".join(missing)
+                              + ". Rerun './follow-stack setup' to continue; saved account settings are reused.")
         if self.pin.read_text().strip() != self.image_metadata()["id"]:
             raise ConfigError("Installed executor image differs from this release; review the upgrade.")
         current = self.current_config()
@@ -336,6 +344,9 @@ class Stack:
         print(f"Startup after logout/reboot: {'enabled' if lingering() else 'needs setup'}")
         print(f"Executor configuration: {'saved' if self.config.exists() else 'needs setup'}")
         print(f"Executor service: {service_state(self.unit)}")
+        gateway_saved = (self.gateway_dir / "gateway.json").exists()
+        print(f"Gateway configuration: {'saved' if gateway_saved else 'needs setup (step 4/5)'}")
+        print(f"Gateway service definition: {'installed' if self.gateway_unit.exists() else 'missing (step 4/5)'}")
         print(f"Gateway service: {service_state(gateway.SERVICE)} (process state, not login readiness)")
         print("Continue setup: ./follow-stack setup; check broker/relay while stopped: ./follow-stack check")
         return 0

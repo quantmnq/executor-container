@@ -314,12 +314,17 @@ After login, press Enter to check readiness, or type later to pause:
 3. 在 **窗口 B——本机**的 Downloads 目录中，替换 IP 后运行：
 
    ```bash
-   ssh -i ./auto-quant.key -N -L 5901:127.0.0.1:5901 ubuntu@YOUR_OCI_PUBLIC_IP
+   ssh -i ./auto-quant.key -o ExitOnForwardFailure=yes -N -L 127.0.0.1:5901:127.0.0.1:5901 ubuntu@YOUR_OCI_PUBLIC_IP
    ```
 
 4. 窗口空白、没有新提示符属于正常现象，请保持打开。TigerVNC 连接地址为
    **`localhost::5901`**（两个冒号）；其他查看器填写主机 `localhost`、端口 `5901`。
    输入单独设置的恢复密码。
+   macOS 也可在 Finder 按 **Command+K**，连接 **`vnc://127.0.0.1:5901`**。
+   SSH 命令必须在 Mac 本机运行，不是在 Ubuntu 或 OCI Cloud Shell 中运行。
+   如果提示启用 Screen Sharing／Remote Management，不需要为此开启 Mac 的共享服务；
+   先确认窗口 B 的 SSH 连接仍在且没有报错，再在窗口 A 用
+   `./follow-stack gateway status` 确认 Gateway 正在运行且已启用恢复画面。
 5. 确认模拟登录并自行处理 IBKR 提示。如果客服需要你检查 API 设置，位置如下图：
    **Configure → Settings**，然后 **API → Settings**。不要仅为与截图一致而改变
    账户模式、端口或已有设置。
@@ -459,10 +464,13 @@ cd ~/follow-stack-0.3.0-ubuntu24.04-arm64-cp312
 | 找不到 `./follow-stack` | 在窗口 A 先 `cd` 进入解压后的版本目录。 |
 | 校验显示 `FAILED` | 停止，从可信渠道重新获取匹配安装包及校验文件。 |
 | 输入密码／令牌无显示 | 正常隐藏输入，输入一次后按回车。 |
-| `Use matching recovery passwords of exactly 8 printable ASCII characters` | 重跑 setup，选择恰好 8 个英文字母／数字，不含空格，两次输入完全一致；已保存账户设置会复用。 |
+| 恢复密码长度／字符不符或两次输入不同 | 选择恰好 8 个英文字母／数字，不含空格，两次输入完全一致。向导允许重试，Ctrl+C 暂停。旧版本会报 `Use matching recovery passwords of exactly 8 printable ASCII characters` 并退出；重跑 setup 会复用已保存账户设置。 |
+| `Run './follow-stack setup' first`／`Setup is incomplete` | 账户设置可能已保存，但 Gateway 尚未配置完成。运行 `./follow-stack doctor`，用相同 Ubuntu 用户在原目录重跑 `./follow-stack setup`，完成第 4/5 步并等待第 5/5 步检查通过；不要删除已保存配置。 |
+| VNC 连接失败／`Address already in use` | 在本机单独的终端窗口保持隧道运行。端口占用可能是已有隧道，不要重复启动或终止不明进程；检查原隧道及 Gateway 状态。不要向公网开放 VNC。 |
 | Docker 权限或重启提示 | 按指示重启、重新连接，在同一目录重跑 setup，不要给 `follow-stack` 加 sudo。 |
 | 没有 IBKR Mobile 请求 | 模拟登录可能不需要。先尝试就绪检查；登录未完成时查看恢复画面。 |
 | `10197`／其他会话占用行情 | 在适当时自行释放其他会话的行情占用再检查；断开真实会话前先确认其用途。 |
+| `354`／行情状态 `denied`，但登录和保证金检查通过 | IBKR 表示未订阅所请求的行情。在 Client Portal 的 **Settings → Trading Platform → Market Data Subscriptions** 检查所选合约及 Gateway 登录用户名的实时行情和 API 权限；订阅前确认费用。交易权限、保证金与行情权限是分开的。重跑 `./follow-stack check`；实时行情通过前仍不能启动交易。 |
 | 行情超时 | 没有收到可用报价。检查交易时段、行情权限及登录，行情恢复后重试；超时不等于已确认休市。 |
 | 已有安装、账户不符、存在持仓／订单或 journal halt | 停止安装并联系支持。不要删除配置／历史，也不要用 `resume` 绕过检查。 |
 

@@ -180,6 +180,9 @@ WantedBy=default.target
 def load_settings(directory: Path, *, check_consistency: bool = True) -> dict:
     for name in ("gateway.json", "ibc.ini"):
         path = directory / name
+        if not path.exists() and not path.is_symlink():
+            raise ConfigError(f"Gateway configuration is incomplete: {name} is missing. "
+                              "Rerun Gateway setup in your terminal.")
         if path.is_symlink() or not path.is_file() or path.stat().st_mode & 0o077:
             raise ConfigError(f"{name} must be a private regular file (mode 0600)")
     settings = json.loads((directory / "gateway.json").read_text())
@@ -206,6 +209,21 @@ def load_settings(directory: Path, *, check_consistency: bool = True) -> dict:
         if key not in ("IbLoginId", "IbPassword") and actual.get(key) != value:
             raise ConfigError("Gateway settings are inconsistent; rerun './follow gateway configure'")
     return settings
+
+
+def recovery_password() -> str:
+    print("Choose a separate recovery desktop password: exactly 8 printable ASCII "
+          "characters, with no spaces (for example, letters and digits).")
+    print("This is not your IBKR password. Press Ctrl+C to pause setup.")
+    while True:
+        password = getpass.getpass("Recovery desktop password (hidden): ")
+        if len(password) != 8 or not all(33 <= ord(c) <= 126 for c in password):
+            print("Use exactly 8 printable ASCII characters with no spaces. Try again.")
+            continue
+        if password != getpass.getpass("Confirm recovery desktop password: "):
+            print("Recovery passwords do not match. Enter both again.")
+            continue
+        return password
 
 
 def configure(executor_path: Path, directory: Path, release: Path, *,
@@ -266,10 +284,7 @@ def configure(executor_path: Path, directory: Path, release: Path, *,
         if backend == "docker":
             gateway_docker.validate_settings(settings)
             if settings["vnc"]:
-                vnc_password = getpass.getpass("Recovery desktop password (8 ASCII characters; not your IBKR password): ")
-                if (len(vnc_password) != 8 or not all(33 <= ord(c) <= 126 for c in vnc_password)
-                        or vnc_password != getpass.getpass("Confirm recovery desktop password: ")):
-                    raise ConfigError("Use matching recovery passwords of exactly 8 printable ASCII characters")
+                vnc_password = recovery_password()
         username = getpass.getpass("IBKR login username (hidden): ")
         password = getpass.getpass("IBKR password (hidden): ")
         content = ibc_config(username, password, settings)
