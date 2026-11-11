@@ -41,6 +41,8 @@ RECONNECT_CODES = frozenset({504, 1100, 1101, 1102, 1300, 2110})
 # "Couldn't connect to TWS" and "Not connected" repeat on every retry while the
 # Gateway is down; the executor logs the outage once and its recovery once.
 NOT_CONNECTED_CODES = frozenset({502, 504})
+# Negotiated API version whose protobuf account-summary cancellation leaks.
+LEGACY_SUMMARY_CANCEL_VERSION = 226
 
 
 class IBKRError(RuntimeError):
@@ -126,6 +128,20 @@ class IBKRBroker:
             def __init__(self) -> None:
                 EWrapper.__init__(self)
                 EClient.__init__(self, self)
+
+            def useProtoBuf(self, msgId: int) -> bool:
+                from ibapi.message import OUT
+
+                # At negotiated API version 226 the Gateway accepts protobuf
+                # summary requests but does not release their subscriptions on
+                # protobuf cancellation (error 322 after two reads). The 10.50.02
+                # SDK caps negotiation at 226, so this covers every Gateway at or
+                # above it; an SDK upgrade must re-validate (see the guard test).
+                # Every other message/version keeps the SDK's negotiated path.
+                if (msgId == OUT.CANCEL_ACCOUNT_SUMMARY
+                        and self.serverVersion() == LEGACY_SUMMARY_CANCEL_VERSION):
+                    return False
+                return super().useProtoBuf(msgId)
 
             def nextValidId(self, orderId: int) -> None:
                 with owner._lock:

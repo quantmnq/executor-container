@@ -21,6 +21,25 @@ halt and the broker before `./follow resume`. Resume asks the running executor
 to adopt current positions and align them with the target; that can submit an
 exit. A new installation does not automatically adopt existing manual positions.
 
+## Balance-sizing account values
+
+With balance sizing, the running executor reads IBKR NetLiquidation while flat
+(at most every 30 seconds) and again before sizing an entry. `./follow status`
+(or `./follow-stack status`) shows the latest result under
+`sizing.account_value_health`: `status` is `ready` or `unavailable`, with its
+`checked_at` time. Check the time as well as the status: reads pause while a
+position is open, so an old record does not prove current readiness. Gateway
+handshake health alone does not establish balance-sizing readiness.
+
+If a read fails, an entry reuses the last sizing base when one exists and is
+otherwise refused; the executor never guesses a size. Never reset the journal or
+replay a refused signal to recover a missed trade.
+
+With the bundled IBKR API version, the executor cancels each account-summary read
+in the older message format. Gateway did not release subscriptions cancelled in
+the newer protobuf format and refused further reads with IBKR error 322. Repeated
+322 errors after an IBKR API upgrade need a new review.
+
 ## Settings and risk limits
 
 `./follow configure` or `./follow settings` without options reruns the sizing

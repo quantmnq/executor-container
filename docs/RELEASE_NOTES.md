@@ -1,18 +1,62 @@
-# Auto Quant 0.3.1 — upgrade and setup fixes
+# Auto Quant 0.3.2 — balance-sizing account-value fix
 
 English | [简体中文](RELEASE_NOTES.zh-CN.md)
 
-Prepared November 6, 2026 (US Pacific). A maintenance release of 0.3.0 with
-contributed fixes. Trading behavior, sizing, protection rules, dependencies and
-the Gateway image are unchanged.
+Prepared November 10, 2026 (US Pacific). The second maintenance release of
+0.3.0, with a contributed fix. Trading rules, sizing formulas, protection rules,
+dependencies and the Gateway image are unchanged.
 
-## New in 0.3.1
+## New in 0.3.2
+
+- **Balance sizing keeps reading the account value.** At the IBKR API version
+  the bundled client negotiates with current Gateways (226), Gateway did not
+  release account-summary subscriptions cancelled in the newer protobuf format:
+  two NetLiquidation reads succeeded, then further reads failed with IBKR error
+  322. An entry then reused the last sizing base or, without one, was refused.
+  The executor now cancels these reads in the older message format; every other
+  API message keeps the client's normal format. A test fails if a future IBKR
+  client changes the negotiated version, so an API upgrade must re-check this.
+- **Account-value health in status.** `./follow-stack status` shows the latest
+  read under `sizing.account_value_health` (`ready` or `unavailable`, with
+  `checked_at`), and the log records each change. Gateway handshake health alone
+  does not prove balance-sizing readiness; see
+  [account-value checks](OPERATIONS.md#balance-sizing-account-values).
+- **Upgrade from 0.3.0 or 0.3.1.** Journal, configuration and Gateway code are
+  identical, so no migration is needed and balance sizing is kept, including on
+  rollback. 0.2.0 and 0.1.12 keep their reviewed upgrade paths.
+
+Thanks to the contributor of
+[#4](https://github.com/quantmnq/executor-container/pull/4), who isolated the
+failure with read-only probes on a real Gateway.
+
+## Update to 0.3.2
+
+From 0.3.1, 0.3.0, 0.2.0 or 0.1.12, follow [UPGRADE.md](UPGRADE.md): stop the
+executor from the old directory while the account has no blocking positions or
+working orders, keep Gateway logged in, extract 0.3.2 into a new directory and
+run `./follow-stack upgrade --from <old directory>`. Both services stay stopped.
+From 0.3.0 or 0.3.1, skip choosing the leverage fraction; your sizing is kept.
+
+## Validation and scope (0.3.2)
+
+340 source tests passed, including from the extracted corresponding source;
+309 tests passed inside the final ARM64 image (one skipped: example
+configurations need the source checkout). Docker lifecycle and credential-isolation
+checks passed, including with the final kit's launcher. The kit's journal,
+configuration and Gateway bytecode match 0.3.0 and 0.3.1 exactly; the 0.2.0 and
+0.1.12 kits pass the reviewed compatibility check. Tests use mocked brokers and
+an IBKR client with patched sending. The contributor reports 12 consecutive
+read-only account-value reads on a real Gateway with the fix; this release was
+not re-run against a real Gateway. No running installation was updated and no
+broker orders were placed.
+
+## Retained from 0.3.1 — upgrade and setup fixes
 
 - **Upgrade from 0.1.12.** `follow-stack upgrade` now accepts 0.1.12 kits. Their
   only Gateway code difference is three setup messages; the updater pins the exact
   published old/new Gateway bytecode pair, and journal, configuration and Docker
   Gateway code must still match. Unknown changes remain blocked. The v0.3.0 kit
-  refuses 0.1.12, so upgrade directly to 0.3.1.
+  refuses 0.1.12, so upgrade directly to 0.3.2.
 - **Upgrade from 0.3.0.** Journal, configuration and Gateway code are identical,
   so no migration is needed and balance sizing is kept, including on rollback.
 - **Unrelated stock holdings during maintenance.** The upgrade/rollback check
@@ -41,14 +85,6 @@ Thanks to the contributor of
 [#3](https://github.com/quantmnq/executor-container/pull/3). The setup
 password retry is implemented in the stack controller so that Gateway code stays
 byte-identical for reviewed upgrades.
-
-## Update to 0.3.1
-
-From 0.3.0, 0.2.0 or 0.1.12, follow [UPGRADE.md](UPGRADE.md): stop the
-executor from the old directory while the account has no blocking positions or
-working orders, keep Gateway logged in, extract 0.3.1 into a new directory and
-run `./follow-stack upgrade --from <old directory>`. Both services stay stopped.
-From 0.3.0, skip choosing the leverage fraction; your sizing is kept.
 
 ## Validation and scope (0.3.1)
 

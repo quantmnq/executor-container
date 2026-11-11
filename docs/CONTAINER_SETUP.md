@@ -14,7 +14,7 @@ No host venv, pip packages, Java installation or full desktop is needed.
 **New to terminals? Start with the [beginner guide](SETUP.md).** This page is the
 technical setup, maintenance and recovery reference.
 
-Version 0.3.1 is prepared for a limited paper-account rollout. See the
+Version 0.3.2 is prepared for a limited paper-account rollout. See the
 [release notes](RELEASE_NOTES.md) for validation scope. Existing installations
 retain their current backend until deliberately migrated.
 This wizard supports a new installation, resuming its own saved setup, and an
@@ -23,7 +23,7 @@ refuses another Gateway installation or a different installed executor image;
 use the maintenance commands below for release changes. Migration from a native
 installation still needs a separately reviewed procedure.
 
-## Credential isolation in 0.3.1
+## Credential isolation in 0.3.2
 
 The executor containers cannot read the managed Gateway credential directory or
 maintenance backups. Empty read-only mounts hide both subtrees; credentials,
@@ -138,6 +138,7 @@ consent and linking. Use `./follow-stack` in place of `./follow` in that guide.
 | API health unavailable after login | The supervisor checks once a minute and restarts after ten consecutive API failures, with a persistent 30-minute cooldown; monitoring pauses for Mobile approval |
 | API monitor needs attention | Inspect the pinned probe image/configuration and reserve client ID 9701; probe errors and account mismatches do not restart Gateway |
 | Inspect executor | `./follow-stack status`, `./follow-stack service-status`, or `./follow-stack logs` |
+| Balance sizing cannot read the account value | `./follow-stack status` shows `sizing.account_value_health` and its time; see [account-value checks](OPERATIONS.md#balance-sizing-account-values). Entries without an earlier sizing base are refused; do not reset the journal |
 | Stop following and disable executor autostart | `./follow-stack stop`; this does not close positions or cancel orders |
 | Change size while stopped and flat | `./follow-stack settings` (asks; previews the NQ/MNQ split), `./follow-stack settings --leverage-fraction 0.5`, or a fixed `--root MNQ --quantity 1` |
 | Different image from a retained wizard release | Use the explicit upgrade procedure below |
@@ -184,12 +185,12 @@ Both services remain stopped. Credentials, Gateway's existing persistent Docker
 volume, trading history and existing halts remain in place. This procedure keeps
 the same Gateway image and requires identical journal/configuration/Gateway code;
 schema changes or Gateway upgrades need a separately reviewed migration.
-From 0.3.0 the compatibility digests are identical, so no migration is needed
-and rollback to 0.3.0 keeps balance sizing. The reviewed migrations are
-**0.1.12 or 0.2.0 to 0.3.1**. For 0.1.12, only the exact published Gateway pair with three added setup
+From 0.3.0 or 0.3.1 the compatibility digests are identical, so no migration is
+needed and rollback to either keeps balance sizing. The reviewed migrations are
+**0.1.12 or 0.2.0 to 0.3.2**. For 0.1.12, only the exact published Gateway pair with three added setup
 messages is accepted; journal and Docker Gateway code must still match.
 For 0.2.0, journal and Gateway code are identical
-and 0.3.1 reads 0.2.0 settings unchanged. Follow the [upgrade guide](UPGRADE.md),
+and 0.3.2 reads 0.2.0 settings unchanged. Follow the [upgrade guide](UPGRADE.md),
 which adds choosing the leverage fraction with `./follow-stack settings`. Rolling
 back to 0.2.0 requires a fixed size first, because 0.2.0 cannot read balance sizing.
 
@@ -218,10 +219,10 @@ do not bypass the pending-maintenance marker or launch the older controller to t
 From the source checkout, build into a separate output directory:
 
 ```bash
-python3.12 scripts/build-executor-container.py --tag follow-executor:0.3.1 --output dist/container-wizard/image
-python3.12 scripts/test-executor-container.py --image follow-executor:0.3.1
+python3.12 scripts/build-executor-container.py --tag follow-executor:0.3.2 --output dist/container-wizard/image
+python3.12 scripts/test-executor-container.py --image follow-executor:0.3.2
 curl --fail --location --output /tmp/follow-dependencies.tar.gz https://github.com/quantmnq/executor-container/releases/download/v0.1.12/follow-executor-0.1.12-dependencies.tar.gz
-python3.12 scripts/collect-third-party-source.py --image follow-executor:0.3.1 --reuse-archive /tmp/follow-dependencies.tar.gz --reuse-sha256 c2740a33b3f91508c70116d4c0a4389b47fe2fd1748b16b5cf9f480dac0bb769
+python3.12 scripts/collect-third-party-source.py --image follow-executor:0.3.2 --reuse-archive /tmp/follow-dependencies.tar.gz --reuse-sha256 c2740a33b3f91508c70116d4c0a4389b47fe2fd1748b16b5cf9f480dac0bb769
 python3.12 scripts/build-container-kit.py --build dist/container-wizard/image/BUILD.json --third-party dist/third-party/SOURCES.json --output dist/container-wizard/kit
 ```
 
@@ -368,7 +369,7 @@ The Sunday observer also
 did not verify a fresh Mobile challenge or live quotes.
 Do not rerun completed paper trade cycles merely to test the installer.
 
-For 0.3.1, runtime pins match 0.1.12, so the commands retain that release's exact
+For 0.3.2, runtime pins match 0.1.12, so the commands retain that release's exact
 dependency sources using the trusted SHA-256 above. The collector checks archive
 and file hashes; the kit builder checks the complete installed image inventory.
 If pins change, collect new sources without `--reuse-archive` and review their
