@@ -9,6 +9,7 @@ import runpy
 import shutil
 import subprocess
 import tempfile
+import tomllib
 import unittest
 import zipfile
 from pathlib import Path
@@ -29,6 +30,20 @@ class ContainerPackagingTests(unittest.TestCase):
             self.assertFalse(any(name.endswith(".py") for name in archive.namelist()))
         # A version bump must not silently leave the operator launcher on an old image.
         self.assertIn(f"follow-executor:{version}", (ROOT / "follow-container").read_text())
+        self.assertIn(f"--image follow-executor:{version} ", (ROOT / ".github/workflows/ci.yml").read_text())
+
+    def test_every_upgrade_list_matches_the_upgrade_guide(self):
+        # The kit README reads the list from the guide's title; customer docs repeat it.
+        version = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
+        sources = runpy.run_path(str(ROOT / "scripts/build-bytecode.py"))["upgrade_sources"](version)
+        chinese = sources.replace(", ", "、").replace(" or ", " 或 ")
+        self.assertEqual((ROOT / "docs/UPGRADE.zh-CN.md").read_text().splitlines()[0],
+                         f"# 从 {chinese} 升级到 {version}")
+        for name in ("README.md", "START_HERE.md", "deploy/customer/AGENTS.md",
+                     "deploy/customer/CLAUDE.md", "docs/AGENT_SETUP.md", "docs/SETUP.md"):
+            self.assertIn(sources, (ROOT / name).read_text(), name)
+        for name in ("START_HERE.zh-CN.md", "docs/AGENT_SETUP.zh-CN.md", "docs/SETUP.zh-CN.md"):
+            self.assertIn(chinese, (ROOT / name).read_text(), name)
 
 
 class ContainerLauncherTests(unittest.TestCase):

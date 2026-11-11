@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import math
+from collections.abc import Callable
 from datetime import datetime, timedelta
 
 from .broker import BrokerState
@@ -40,8 +41,10 @@ class ProtectionWatch:
     An expired deadline latches until the emergency exit is reconciled as flat.
     """
 
-    def __init__(self, journal: Journal) -> None:
+    def __init__(self, journal: Journal,
+                 expected_positions: Callable[[], dict[int, int]] | None = None) -> None:
         self.journal = journal
+        self.expected_positions = expected_positions or journal.expected_positions
         self.records: dict[str, dict] = json.loads(journal.get_state("protection_watch") or "{}")
 
     def save(self) -> None:
@@ -70,7 +73,7 @@ class ProtectionWatch:
         record = self.records.get(str(con_id))
         if (not position or contract is None or record is None or record["closing"]
                 or record["deadline"] is not None
-                or self.journal.expected_positions().get(con_id) != position
+                or self.expected_positions().get(con_id) != position
                 or target.contract_month != contract.contract_month
                 or target.direction != (1 if position > 0 else -1)
                 or order.status not in {"Submitted", "PreSubmitted"}
@@ -134,7 +137,7 @@ class ProtectionWatch:
 
     def observe(self, state: BrokerState, now: datetime, target: Target | None = None) -> list[int]:
         before = json.dumps(self.records, sort_keys=True)
-        expected = self.journal.expected_positions()
+        expected = self.expected_positions()
         for key in list(self.records):
             # A missing execution/position callback must not erase a timer.
             if (not expected.get(int(key)) and not self.records[key]["closing"]

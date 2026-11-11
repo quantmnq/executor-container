@@ -19,8 +19,10 @@ from typing import Any
 from .broker import (
     BOOK_ROOTS,
     MULTIPLIERS,
+    ORDER_REF_PREFIX,
     Broker,
     BrokerState,
+    Execution,
     FutureContract,
     MarginEstimate,
     OrderRequest,
@@ -43,7 +45,7 @@ from .engine import (
 from .journal import Journal
 from .protection import ProtectionWatch
 from .signal import Heartbeat, SignalError, Target, parse_target
-from .sizing import balance_base, book_label, leg_units, split
+from .sizing import UNKNOWN_ROOT, balance_base, book_label, leg_units, split
 
 LOGGER = logging.getLogger(__name__)
 ACK_TIMEOUT = timedelta(seconds=5)
@@ -202,6 +204,7 @@ class Executor:
         self._net_liquidation_warmed = datetime.min.replace(tzinfo=UTC)
         self._mismatch_since: datetime | None = None
         self._rejection_seq = int(journal.get_state("rejection_seq") or 0)
+        self._absorbed: set[Execution] = set()
         self._next_connect = datetime.min.replace(tzinfo=UTC)
         self._next_refresh = datetime.min.replace(tzinfo=UTC)
         self._next_state_ack = datetime.min.replace(tzinfo=UTC)
@@ -211,7 +214,8 @@ class Executor:
         self._started_at = self.clock()
         self._heartbeat_seq = 0
         self._service_started = False
-        self._protection = ProtectionWatch(journal)
+        self._expected: tuple[tuple[int, str | None], dict[int, int]] | None = None
+        self._protection = ProtectionWatch(journal, self._expected_positions)
         self._protection_refresh: dict[int, int] = {}
         self._orphan_stops: dict[str, dict] = json.loads(journal.get_state("orphan_stops") or "{}")
         self._orphan_refresh: int | None = None
@@ -445,15 +449,18 @@ class Executor:
         purposes = {oid: order.purpose for oid, order in state.orders.items() if order.purpose}
         filled = False
         for execution in state.executions:
-            if not execution.order_ref.startswith("fx:"):
+            # The broker keeps every execution since this process started; recording
+            # one again is a no-op, so skip those already recorded on every step.
+            if execution in self._absorbed or not execution.order_ref.startswith(ORDER_REF_PREFIX):
                 continue
             if self.journal.record_execution(execution):
                 filled = True
-                purpose = execution.order_ref.split(":")[1] if ":" in execution.order_ref else None
+                purpose = execution.order_ref.split(":")[1]
                 contract = state.contracts.get(execution.con_id)
                 LOGGER.info("fill: %s %s %s %s @ %s", purpose, execution.side, execution.quantity,
                             contract.root if contract else "", execution.price)
                 self.acks.send("filled", self._seq(), {"purpose": purpose})
+            self._absorbed.add(execution)
         if filled and self.config.sizing is not None:
             LOGGER.info("position: %s", self.book(state))
         for order_id, order in state.orders.items():
@@ -491,9 +498,9 @@ class Executor:
             elif purpose == "exit":
                 self._halt(f"exit order {rejection.order_id} rejected: {rejection.message}")
 
+        filled_orders = {item.order_id for item in state.executions} if self.pending else set()
         for order_id, pending in list(self.pending.items()):
-            filled = any(item.order_id == order_id for item in state.executions)
-            if _acknowledged(pending, state.orders.get(order_id), filled):
+            if _acknowledged(pending, state.orders.get(order_id), order_id in filled_orders):
                 self.pending.pop(order_id)
 
     def _integrity(self, state: BrokerState, now: datetime) -> str | None:
@@ -504,7 +511,7 @@ class Executor:
         held = {con_id: qty for con_id, qty in state.positions.items() if qty}
         if len(held) > 1 and not self._one_book(state, held):
             return f"positions in more than one {label} contract: {held}"
-        expected = self.journal.expected_positions()
+        expected = self._expected_positions()
         if held == expected:
             self._mismatch_since = None
             return None
@@ -534,6 +541,19 @@ class Executor:
             return True
         return False
 
+    def _expected_positions(self) -> dict[int, int]:
+        """The journal's expected positions, recomputed only when they can change.
+
+        They change only when an execution is recorded or corrected (both raise the
+        journal's notification revision) or when resume sets a new baseline. Each
+        step otherwise asked the journal several times, and every answer re-read
+        all executions since the baseline.
+        """
+        key = (self.journal.notification_revision(), self.journal.get_state("baseline"))
+        if self._expected is None or self._expected[0] != key:
+            self._expected = (key, self.journal.expected_positions())
+        return dict(self._expected[1])
+
     def _save_orphans(self) -> None:
         self.journal.set_state("orphan_stops", json.dumps(self._orphan_stops, sort_keys=True))
 
@@ -544,7 +564,7 @@ class Executor:
         for flat. Persist cleanup before cancellation and block new entries until
         another snapshot resolves cancellation/fill races.
         """
-        expected = self.journal.expected_positions()
+        expected = self._expected_positions()
         for order in state.orders.values():
             if (order.working and order.purpose == "stop"
                     and order.client_id == self.config.ibkr.client_id
@@ -657,7 +677,7 @@ class Executor:
             self.broker.refresh()
             return []
         position = state.positions.get(con_id, 0)
-        expected = self.journal.expected_positions().get(con_id, 0) - record.get("position_offset", 0)
+        expected = self._expected_positions().get(con_id, 0) - record.get("position_offset", 0)
         if position != expected:
             return []
         orders = [order for order in state.orders.values() if order.con_id == con_id]
@@ -835,8 +855,8 @@ class Executor:
         """The journal's expected position by root, such as ``1 NQ + 5 MNQ``."""
         roots = self._roots(state)
         quantities: dict[str, int] = {}
-        for con_id, quantity in self.journal.expected_positions().items():
-            root = roots.get(con_id, "?")
+        for con_id, quantity in self._expected_positions().items():
+            root = roots.get(con_id, UNKNOWN_ROOT)
             quantities[root] = quantities.get(root, 0) + quantity
         return book_label(quantities)
 
@@ -897,7 +917,7 @@ class Executor:
         assert key is not None
         if self.journal.trade_status(key) is not None or key in self._balance_trades():
             return None
-        if (any(state.positions.values()) or self.journal.expected_positions()
+        if (any(state.positions.values()) or self._expected_positions()
                 or any(order.working and order.purpose == "entry" for order in state.orders.values())):
             return None
         quantities, detail = self._balance_quantities(target, now)

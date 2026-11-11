@@ -425,6 +425,21 @@ class BookAdapterTests(unittest.TestCase):
         broker.on_tick_price(request_id, 4, 21001.0)
         self.assertEqual(broker.quote_price(nq.con_id), 21001.0)
 
+    def test_quotes_do_not_wake_the_executor(self) -> None:
+        wakes = []
+        broker = self.make()
+        broker._on_update = lambda: wakes.append(1)
+        nq = contract(root="NQ")
+        broker.monitor_market_data([nq])
+        (request_id,) = broker._market_requests
+        broker.on_market_data_type(request_id, 1)
+        broker.on_tick_price(request_id, 1, 20999.75)
+        broker.on_tick_price(request_id, 2, 21000.25)
+        self.assertEqual(wakes, [])
+        self.assertEqual(broker.health()["market_data"], "ready")
+        broker.on_error(request_id, 354, "not subscribed")  # health errors still wake it
+        self.assertEqual(wakes, [1])
+
 
 @unittest.skipIf(Contract is None, "ibapi is not installed")
 class SummaryCancellationWireTests(unittest.TestCase):

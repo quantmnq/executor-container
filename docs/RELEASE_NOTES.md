@@ -1,12 +1,56 @@
-# Auto Quant 0.3.2 — balance-sizing account-value fix
+# Auto Quant 0.4.0 — steady executor performance
 
 English | [简体中文](RELEASE_NOTES.zh-CN.md)
 
-Prepared November 10, 2026 (US Pacific). The second maintenance release of
-0.3.0, with a contributed fix. Trading rules, sizing formulas, protection rules,
-dependencies and the Gateway image are unchanged.
+Prepared November 11, 2026 (US Pacific). Builds on 0.3.2. Trading rules, sizing
+formulas, protection rules, dependencies and the Gateway image are unchanged.
 
-## New in 0.3.2
+## New in 0.4.0
+
+- **The executor no longer slows down as fills accumulate.** The IBKR connection
+  keeps every execution since the executor started, and each step recorded all
+  of them again, searching the journal's executions each time. A step's cost grew
+  with the square of past fills: about 40 ms after 500 fills and 450 ms after
+  2,000, which also delayed placing and moving orders. The executor now records
+  each execution once per process and recomputes the journal's expected positions
+  only after a fill or a resume; a step takes under 1 ms at 2,000 fills. The
+  journal's format and contents are unchanged.
+- **Quotes no longer drive extra steps.** Live quotes serve only health
+  reporting, but every tick ran a full executor step. Quotes are now read on the
+  regular 0.25-second cycle; market-data errors still wake the executor at once.
+- **Gateway stops only after the executor.** `./follow-stack gateway stop` now
+  refuses while the executor service runs, as the container guide already
+  required: a running executor needs Gateway to manage exits. Gateway's own
+  service restarts are unaffected.
+- **No held contract is shown as flat.** `./follow-stack status` and the executor
+  log show a held contract whose root the journal never recorded, such as a
+  manual position adopted by `resume` with balance sizing, as `UNKNOWN`.
+  Previously it was left out, so the book could read `flat`.
+- **Upgrade from 0.3.0, 0.3.1 or 0.3.2.** Journal, configuration and Gateway code
+  are identical, so no migration is needed and balance sizing is kept, including
+  on rollback. 0.2.0 and 0.1.12 keep their reviewed upgrade paths.
+
+## Update to 0.4.0
+
+From 0.3.2, 0.3.1, 0.3.0, 0.2.0 or 0.1.12, follow [UPGRADE.md](UPGRADE.md): stop
+the executor from the old directory while the account has no blocking positions
+or working orders, keep Gateway logged in, extract 0.4.0 into a new directory and
+run `./follow-stack upgrade --from <old directory>`. Both services stay stopped.
+From 0.3.0, 0.3.1 or 0.3.2, skip choosing the leverage fraction; your sizing is kept.
+
+## Validation and scope (0.4.0)
+
+346 source tests passed, including from the extracted corresponding source;
+314 tests passed inside the final ARM64 image (one skipped: example
+configurations need the source checkout). Docker lifecycle and credential-isolation
+checks passed, including with the final kit's launcher. The kit's journal,
+configuration and Gateway bytecode match 0.3.0, 0.3.1 and 0.3.2 exactly; the 0.2.0
+and 0.1.12 kits pass the reviewed compatibility check. Step times were measured
+with a simulated broker holding 0, 500 and 2,000 past fills. Tests use mocked
+brokers; this release has not yet run against a real Gateway or paper account.
+No running installation was updated and no broker orders were placed.
+
+## Retained from 0.3.2 — balance-sizing account-value fix
 
 - **Balance sizing keeps reading the account value.** At the IBKR API version
   the bundled client negotiates with current Gateways (226), Gateway did not
@@ -29,14 +73,6 @@ Thanks to the contributor of
 [#4](https://github.com/quantmnq/executor-container/pull/4), who isolated the
 failure with read-only probes on a real Gateway.
 
-## Update to 0.3.2
-
-From 0.3.1, 0.3.0, 0.2.0 or 0.1.12, follow [UPGRADE.md](UPGRADE.md): stop the
-executor from the old directory while the account has no blocking positions or
-working orders, keep Gateway logged in, extract 0.3.2 into a new directory and
-run `./follow-stack upgrade --from <old directory>`. Both services stay stopped.
-From 0.3.0 or 0.3.1, skip choosing the leverage fraction; your sizing is kept.
-
 ## Validation and scope (0.3.2)
 
 340 source tests passed, including from the extracted corresponding source;
@@ -56,7 +92,7 @@ broker orders were placed.
   only Gateway code difference is three setup messages; the updater pins the exact
   published old/new Gateway bytecode pair, and journal, configuration and Docker
   Gateway code must still match. Unknown changes remain blocked. The v0.3.0 kit
-  refuses 0.1.12, so upgrade directly to 0.3.2.
+  refuses 0.1.12, so upgrade directly to 0.4.0.
 - **Upgrade from 0.3.0.** Journal, configuration and Gateway code are identical,
   so no migration is needed and balance sizing is kept, including on rollback.
 - **Unrelated stock holdings during maintenance.** The upgrade/rollback check

@@ -13,6 +13,7 @@ import sqlite3
 import subprocess
 import tempfile
 import time
+import tomllib
 import uuid
 from pathlib import Path
 
@@ -29,7 +30,8 @@ def docker(*args: str, check: bool = True) -> subprocess.CompletedProcess:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--image", default="follow-executor:0.3.2")
+    version = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
+    parser.add_argument("--image", default=f"follow-executor:{version}")
     args = parser.parse_args()
     names = []
     with tempfile.TemporaryDirectory(prefix="follow-container-test-") as directory:

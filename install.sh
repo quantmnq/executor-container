@@ -14,7 +14,7 @@ if [[ $repo_dir =~ [[:space:]%] ]]; then
 fi
 source /etc/os-release
 if [[ $ID != ubuntu || $VERSION_ID != 24.04 ]]; then
-    echo 'This installer targets Ubuntu 24.04 LTS (OCI Ampere ARM64 or x86_64).' >&2
+    echo 'This installer targets Ubuntu 24.04 LTS on OCI Ampere ARM64.' >&2
     exit 1
 fi
 if systemctl --user is-active --quiet follow-executor.service; then

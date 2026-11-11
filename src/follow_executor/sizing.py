@@ -22,6 +22,8 @@ from .signal import Sizing
 
 UNIT_POINT_VALUE = Decimal(2)
 UNITS_PER_NQ = 10
+# Book label for a held contract whose root this journal never recorded.
+UNKNOWN_ROOT = "UNKNOWN"
 # The leader's current band, for previews only: trading always uses the weight and
 # band carried by each signed signal.
 LEADER_BAND = Sizing(1.0, 6.0, 5.88, 6.6)
@@ -67,9 +69,14 @@ def split(units: int) -> dict[str, int]:
 
 
 def book_label(quantities: dict[str, int]) -> str:
-    """``1 NQ + 5 MNQ``; zero parts are omitted and an empty book is ``flat``."""
+    """``1 NQ + 5 MNQ``; zero parts are omitted and an empty book is ``flat``.
 
-    parts = [f"{abs(quantities[root])} {root}" for root in ("NQ", "MNQ") if quantities.get(root)]
+    Any other root, such as ``UNKNOWN``, follows NQ and MNQ, so a held contract is
+    never reported as flat.
+    """
+
+    order = ["NQ", "MNQ", *sorted(set(quantities) - {"NQ", "MNQ"})]
+    parts = [f"{abs(quantities[root])} {root}" for root in order if quantities.get(root)]
     return " + ".join(parts) or "flat"
 
 

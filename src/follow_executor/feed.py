@@ -14,8 +14,7 @@ from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
-from follow_executor.crypto import Verifier
-
+from .crypto import Verifier
 from .signal import Heartbeat, SignalError, Target, parse_heartbeat, parse_target
 
 LOGGER = logging.getLogger(__name__)

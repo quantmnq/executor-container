@@ -13,6 +13,7 @@ import shlex
 import shutil
 import subprocess
 import tempfile
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,7 +21,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--image", default="follow-executor:0.3.2")
+    version = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
+    parser.add_argument("--image", default=f"follow-executor:{version}")
     parser.add_argument("--launcher", type=Path, default=ROOT / "follow-container")
     args = parser.parse_args()
     real_docker = shutil.which("docker")

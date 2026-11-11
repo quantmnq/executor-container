@@ -42,7 +42,6 @@ def database_path(config):
     return config.journal_path.with_suffix(".notifications.sqlite3")
 
 
-
 class Notifications:
     def __init__(self, config, *, transport=request):
         self.config, self.transport = config, transport

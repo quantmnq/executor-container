@@ -101,6 +101,7 @@ class BaseArithmeticTests(unittest.TestCase):
         self.assertEqual(book_label({"NQ": 1, "MNQ": 5}), "1 NQ + 5 MNQ")
         self.assertEqual(book_label({"NQ": 2, "MNQ": 0}), "2 NQ")
         self.assertEqual(book_label({}), "flat")
+        self.assertEqual(book_label({"UNKNOWN": 3, "NQ": 1}), "1 NQ + 3 UNKNOWN")
 
     def test_preview_marks_weights_that_round_to_zero(self) -> None:
         # 10,000 at f = 1 and NQ 21,000: base floor(60,000 / 42,000) = 1.
@@ -526,6 +527,15 @@ class BookSizingRuleTests(BookTestCase):
 
 
 class BookSafetyTests(BookTestCase):
+    def test_an_adopted_contract_of_unrecorded_root_is_never_shown_as_flat(self) -> None:
+        from follow_executor.cli import _book
+
+        # Resume adopts broker positions as the baseline, including a manual
+        # position whose root this journal never recorded.
+        self.journal.set_baseline({contract("202612", "MNQ").con_id: 3})
+        self.assertEqual(_book(self.config, self.journal), "3 UNKNOWN")
+        self.assertEqual(self.executor.book(self.broker.state()), "3 UNKNOWN")
+
     def test_both_roots_of_one_month_are_one_book_but_other_mixes_halt(self) -> None:
         self.executor.on_signal(self.entry())
         self.settle()

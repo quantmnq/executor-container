@@ -40,6 +40,15 @@ def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def upgrade_sources(version: str) -> str:
+    """The releases docs/UPGRADE.md upgrades from, such as ``0.2.0 or 0.3.0``."""
+    title = (ROOT / "docs/UPGRADE.md").read_text().splitlines()[0]
+    match = re.fullmatch(r"# Upgrade from (.+) to (\d+\.\d+\.\d+)", title)
+    if match is None or match[2] != version:
+        raise ValueError(f"docs/UPGRADE.md must start with '# Upgrade from ... to {version}'")
+    return match[1]
+
+
 def wheel_bytes(project: dict) -> bytes:
     """Legacy module.pyc paths are necessary for imports without .py sources."""
     files = {}
@@ -202,9 +211,10 @@ def build(output: Path, *, executor_image: dict | None = None, image_archive: Pa
             "fraction (above 0, at most 1) of the leader's 6x band and previews the\n"
             "NQ + MNQ split. After readiness checks, review your mode and size and explicitly\n"
             "run `./follow-stack start`.\n\n"
-            "Updating an existing 0.2.0 installation? Follow the upgrade guide while flat:\n"
-            "- [Upgrade from 0.2.0](docs/UPGRADE.md)\n"
-            "- [从 0.2.0 升级](docs/UPGRADE.zh-CN.md)\n\n"
+            f"Updating an existing {upgrade_sources(version)} installation? Follow the\n"
+            "upgrade guide while flat:\n"
+            f"- [Upgrade to {version}](docs/UPGRADE.md)\n"
+            f"- [升级到 {version}](docs/UPGRADE.zh-CN.md)\n\n"
             "- [Container maintenance and recovery reference](docs/CONTAINER_SETUP.md)\n"
             "- [中文容器维护与恢复参考](docs/CONTAINER_SETUP.zh-CN.md)\n\n"
             "- [Release notes and validation scope](docs/RELEASE_NOTES.md)\n"

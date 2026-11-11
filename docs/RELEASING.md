@@ -9,18 +9,20 @@ release evidence, credentials or journal. [Source/build details](SOURCE.md).
 
 ## Build and validate
 
-Version 0.3.2 is the second maintenance release of 0.3.0 (balance sizing: a
-leverage fraction of the leader's band, the weight each signal carries and an
-NQ + MNQ book). It does not change trading behavior. `follow-stack upgrade`
-accepts 0.3.0 and 0.3.1 (identical compatibility digests), the reviewed 0.2.0 migration and the reviewed
+Version 0.4.0 keeps 0.3.0's balance sizing (a leverage fraction of the leader's
+band, the weight each signal carries and an NQ + MNQ book) and changes no trading
+decision; it keeps the executor's step time flat as fills accumulate. `follow-stack upgrade`
+accepts 0.3.0, 0.3.1 and 0.3.2 (identical compatibility digests), the reviewed 0.2.0 migration and the reviewed
 0.1.12 Gateway bytecode pair in `maintenance.REVIEWED_GATEWAY_MIGRATIONS`. The
 journal, Gateway and Gateway-docker modules must therefore stay byte-identical to
 0.2.0/0.3.0; confirm with `follow_executor.release.verify_release` on every kit.
 0.3.0's own config/local digests are not a reviewed migration, so changing any of
 those modules would also block 0.3.0 upgrades until a reviewed entry is added.
 Use CPython 3.12 on Ubuntu 24.04 ARM64 with Docker. Set the version in
-`pyproject.toml`, the default image tag in the launcher/tests, and bilingual
-versioned examples together. Old release archives are immutable.
+`pyproject.toml`, the default image tag in `follow-container` and `ci.yml`, the
+title of both upgrade guides and bilingual versioned examples together; the test
+scripts read the version, the kit README takes its upgrade list from
+`docs/UPGRADE.md`, and a test checks that every copy of that list matches. Old release archives are immutable.
 
 ```bash
 .venv/bin/ruff check .
@@ -30,7 +32,7 @@ python3.12 scripts/build-executor-container.py
 python3.12 scripts/test-executor-container.py
 python3.12 scripts/test-executor-isolation.py
 curl --fail --location --output /tmp/follow-dependencies.tar.gz https://github.com/quantmnq/executor-container/releases/download/v0.1.12/follow-executor-0.1.12-dependencies.tar.gz
-python3.12 scripts/collect-third-party-source.py --image follow-executor:0.3.2 --reuse-archive /tmp/follow-dependencies.tar.gz --reuse-sha256 c2740a33b3f91508c70116d4c0a4389b47fe2fd1748b16b5cf9f480dac0bb769
+python3.12 scripts/collect-third-party-source.py --image follow-executor:0.4.0 --reuse-archive /tmp/follow-dependencies.tar.gz --reuse-sha256 c2740a33b3f91508c70116d4c0a4389b47fe2fd1748b16b5cf9f480dac0bb769
 python3.12 scripts/build-container-kit.py --build dist/executor-container/BUILD.json --third-party dist/third-party/SOURCES.json
 python3.12 scripts/build-source.py --output dist/source --export dist/public-repository
 ```
@@ -69,13 +71,13 @@ files in a clone of the public repository; it does not need access to this VM's
 secrets. Include hidden public files such as `.github/` and `.gitignore`, but
 never copy the working VM's `.git/` history. No repository URL is assumed by the code.
 
-Create a release/tag matching version 0.3.2 and attach all of these from the
+Create a release/tag matching version 0.4.0 and attach all of these from the
 reviewed release output:
 
-- `follow-stack-0.3.2-ubuntu24.04-arm64-cp312.tar.gz`
+- `follow-stack-0.4.0-ubuntu24.04-arm64-cp312.tar.gz`
 - Its `.tar.gz.sha256` checksum file
-- `follow-executor-0.3.2-source.tar.gz` (also included inside the kit)
-- `follow-executor-0.3.2-dependencies.tar.gz`
+- `follow-executor-0.4.0-source.tar.gz` (also included inside the kit)
+- `follow-executor-0.4.0-dependencies.tar.gz`
 - `SHA256SUMS` covering these release assets
 
 Offer the source downloads beside the binary download at no additional charge.
@@ -95,7 +97,7 @@ Supply personal relay tokens privately and confirm the provider fingerprint.
 
 ## Customer downloads and Discord
 
-Use the public GitHub repository for source and a **v0.3.2 Release** for the
+Use the public GitHub repository for source and a **v0.4.0 Release** for the
 five assets above. In GitHub, open **Releases → Draft a new release**, choose the
 matching source commit/tag, attach the assets and use the release notes. For the
 initial paper cohort, mark it as a pre-release. Review the actual published
@@ -134,7 +136,7 @@ The native Gateway path remains available for existing installations; AMD64 is
 not a supported customer target. Changing the upstream Gateway pin requires its
 own login/recovery acceptance, independent of source-release packaging.
 
-For 0.3.2, runtime pins match 0.1.12, so the commands retain that release's exact
+For 0.4.0, runtime pins match 0.1.12, so the commands retain that release's exact
 dependency sources using the trusted SHA-256 above. The collector checks archive
 and file hashes; the kit builder checks the complete installed image inventory.
 If pins change, collect new sources without `--reuse-archive` and review their

@@ -21,14 +21,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from follow_executor.crypto import Verifier
-
 from .broker import MULTIPLIERS, OrderRequest
 from .config import ConfigError, ExecutorConfig, load_config
+from .crypto import Verifier
 from .journal import Journal
 from .local import bind_settings, default_config_path, exclusive
 from .signal import SignalError, parse_target
-from .sizing import book_label, preview
+from .sizing import UNKNOWN_ROOT, book_label, preview
 
 LOGGER = logging.getLogger("follow_executor")
 
@@ -65,9 +64,11 @@ def _describe(target: Any) -> dict[str, Any]:
 def _book(config: ExecutorConfig, journal: Journal) -> str:
     """Expected position by root, such as ``1 NQ + 5 MNQ``."""
     roots = json.loads(journal.get_state("contract_roots") or "{}")
+    # A fixed size trades one root; a balance book records each contract's root.
+    fallback = config.root if config.sizing is None else UNKNOWN_ROOT
     quantities: dict[str, int] = {}
     for con_id, quantity in journal.expected_positions().items():
-        root = roots.get(str(con_id), config.root)
+        root = roots.get(str(con_id), fallback)
         quantities[root] = quantities.get(root, 0) + quantity
     return book_label(quantities)
 

@@ -289,7 +289,11 @@ class IBKRBroker:
         self._reconciled = True
 
     def monitor_market_data(self, contracts: list[FutureContract]) -> None:
-        """Read-only streaming quotes for health checks; never used to price orders."""
+        """Read-only streaming quotes for health checks; never used to price orders.
+
+        Quote callbacks do not wake the executor: it reads market-data health on its
+        regular 0.25 s cycle, and a wake per tick would run a trading step per tick.
+        """
         if not self.is_connected:
             return
         wanted = {contract.con_id: contract for contract in contracts}
@@ -324,7 +328,6 @@ class IBKRBroker:
                     item["status"] = "delayed"
                 elif item["quote"]:
                     item["status"] = "ready"
-        self._on_update()
 
     def on_tick_price(self, request_id: int, tick_type: int, price: float) -> None:
         with self._lock:
@@ -338,7 +341,6 @@ class IBKRBroker:
                     item["status"] = "ready"
             elif tick_type in {66, 67, 68}:
                 item["status"] = "delayed"
-        self._on_update()
 
     def health(self) -> dict[str, Any]:
         with self._lock:

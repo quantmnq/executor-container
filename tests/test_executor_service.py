@@ -269,6 +269,44 @@ class FeedLossTests(ExecutorTestCase):
         self.assertEqual(len(self.broker.placed("stop")), 1)
         self.assertIsNone(self.journal.halt_reason())
 
+    def test_each_broker_execution_is_recorded_once_per_process(self) -> None:
+        # The broker keeps every execution since start; re-recording each one on
+        # every step made a step's cost grow with the number of past fills.
+        self.executor.on_signal(target(1, "entry"))
+        self.settle()
+        recorded = []
+        original = self.journal.record_execution
+        self.journal.record_execution = lambda execution: recorded.append(execution) or original(execution)
+        self.settle()
+        self.assertEqual(recorded, [])
+        self.broker.trigger_stop()
+        self.settle()
+        self.assertEqual([item.order_id for item in recorded], [self.broker.executions[-1].order_id])
+        self.assertEqual(self.journal.expected_positions(), {})
+
+    def test_expected_positions_are_recomputed_only_after_fills_or_resume(self) -> None:
+        self.executor.on_signal(target(1, "entry"))
+        self.settle()
+        calls = []
+        original = self.journal.expected_positions
+        self.journal.expected_positions = lambda: calls.append(1) or original()
+        self.settle()
+        self.assertEqual(calls, [])  # idle steps reuse the answer
+        self.broker.trigger_stop()
+        self.settle()
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(self.executor._expected_positions(), {})
+        # Resume adopts a manual position as the new baseline.
+        manual = contract()
+        self.broker.positions[manual.con_id] = 1
+        self.settle()
+        self.clock.advance(6)
+        self.settle()
+        self.assertIsNotNone(self.journal.halt_reason())
+        self.journal.set_state("resume_requested", T0.isoformat())
+        self.settle()
+        self.assertEqual(self.executor._expected_positions(), {manual.con_id: 1})
+
     def test_heartbeat_ahead_of_the_journal_requests_a_replay(self) -> None:
         from follow_executor.signal import Heartbeat
 

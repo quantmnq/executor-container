@@ -261,6 +261,22 @@ class StackTests(unittest.TestCase):
             self.wizard.prepare_image(self.metadata)
         self.assertEqual(docker.call_count, 1)
 
+    def test_gateway_stop_is_refused_while_the_container_executor_runs(self):
+        states = {self.wizard.unit: "active", gateway.SERVICE: "active"}
+        for name in ("gateway.json", "ibc.ini"):
+            private_write(self.wizard.gateway_dir / name, "{}")
+        with (patch.object(self.wizard, "require_gateway_ownership"),
+              patch.object(gateway, "load_settings", return_value={"backend": "docker"}),
+              patch.object(stack, "service_state", side_effect=lambda name, **_: states[name]),
+              patch.object(gateway, "dispatch") as dispatch):
+            with self.assertRaisesRegex(ConfigError, "follow-stack stop"):
+                self.wizard.gateway_action("stop")
+            dispatch.assert_not_called()
+            # The supervisor's own ExecStop cleanup is never blocked.
+            self.assertEqual(self.wizard.gateway_action("container-stop"), dispatch.return_value)
+            states[self.wizard.unit] = "inactive"
+            self.assertEqual(self.wizard.gateway_action("stop"), dispatch.return_value)
+
     def test_running_or_enabled_executor_and_cli_lock_block_setup(self):
         with (patch.object(stack, "service_state", return_value="active"),
               self.assertRaisesRegex(ConfigError, "executor is running")):

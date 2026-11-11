@@ -218,6 +218,11 @@ class Stack:
 
     def gateway_action(self, action: str, *, vnc: bool | None = None) -> int:
         self.require_gateway_ownership()
+        # gateway.py checks only the native executor unit; it stays byte-identical
+        # for reviewed upgrades, so check this release's container executor here.
+        if action == "stop" and service_state(self.unit) not in ("inactive", "failed"):
+            raise ConfigError("The executor is running and needs Gateway to manage exits. "
+                              "While flat, run './follow-stack stop' first, then stop Gateway.")
         if action not in ("configure", "container-stop"):
             for name in ("gateway.json", "ibc.ini"):
                 path = self.gateway_dir / name
