@@ -79,6 +79,7 @@ scripts/test-executor-container.py
 scripts/test-executor-isolation.py
 src/follow_executor/__init__.py
 src/follow_executor/broker.py
+src/follow_executor/cash_session.py
 src/follow_executor/cli.py
 src/follow_executor/config.py
 src/follow_executor/crypto.py
@@ -111,6 +112,7 @@ tests/rehearsal/Dockerfile
 tests/rehearsal/README.md
 tests/rehearsal/drive-wizard.py
 tests/rehearsal/maintenance-fixture.py
+tests/test_balance_reading.py
 tests/test_balance_sizing.py
 tests/test_bytecode_release.py
 tests/test_executor_container.py

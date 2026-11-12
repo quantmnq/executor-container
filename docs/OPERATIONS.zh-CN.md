@@ -12,7 +12,11 @@
 
 ## 余额仓位的账户净值读取
 
-使用余额仓位时，运行中的执行器会在空仓期间（最多每 30 秒一次）以及计算入场数量前读取 IBKR NetLiquidation。`./follow status`（或 `./follow-stack status`）在 `sizing.account_value_health` 中显示最近一次结果：`status` 为 `ready` 或 `unavailable`，并附 `checked_at` 时间。请同时核对时间和状态：持仓期间不会读取，旧记录不能证明当前已就绪。仅凭 Gateway 握手健康，不能确认余额仓位已就绪。
+使用余额仓位时，运行中的执行器在纳斯达克常规交易时段内，每根 5 分钟 K 线读取一次 IBKR NetLiquidation，时间为该 K 线开始后第 2:00 至 3:00 分钟（美东时间）。常规交易时段为美东 09:30–16:00，提前收盘日为 13:00，周末和交易所假日不读取。仅当最近一次券商对账显示没有持仓且没有活动订单时才会读取。读取与交易循环并行运行，因此不会延迟信号、止损调整或成交后的止损下单。
+
+入场时，如果该读数不超过 360 秒，且读取之后没有记录任何成交，则使用该读数；否则入场仍按原方式直接读取 NetLiquidation。重启或 IBKR 重新连接会丢弃该读数。交易日志会将每次读取记录为 `balance_reading`，将每次失败记录为 `balance_reading_failed`；读取失败不会发送告警。每次入场的 `balance_size` 记录包含 `net_liquidation_source`（`mid_bar_reading` 或 `direct_read`），以及 `reading_age_seconds` 或 `reading_unused`（未使用该读数的原因）。
+
+`./follow status`（或 `./follow-stack status`）在 `sizing.account_value_health` 中显示最近一次读取结果：`status` 为 `ready` 或 `unavailable`，并附 `checked_at` 时间。请同时核对时间和状态：持仓期间及常规交易时段以外不会读取，旧记录不能证明当前已就绪。仅凭 Gateway 握手健康，不能确认余额仓位已就绪。
 
 读取失败时，如有上一次的仓位基数，入场会沿用该基数，否则拒绝入场；执行器不会猜测数量。不要为了补回错过的交易而重置交易日志数据库或重放被拒绝的信号。
 

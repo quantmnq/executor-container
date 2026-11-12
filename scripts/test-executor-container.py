@@ -109,7 +109,7 @@ else:
                 "test_executor_service", "test_executor_protection",
                 "test_executor_setup", "test_executor_notifications",
                 "test_position_notifications", "test_service_notifications",
-                "test_maintenance", "test_readiness", "test_balance_sizing",
+                "test_maintenance", "test_readiness", "test_balance_sizing", "test_balance_reading",
                 "test_gateway", "test_gateway_docker", "test_gateway_login", "test_gateway_health",
                 "test_stack",
             )

@@ -18,7 +18,9 @@ From 0.3.0, setup asks for a **leverage fraction** `f` above 0 and at most 1.
 
 At each **new entry while flat**, the executor sizes one book:
 
-1. `E` is your account's IBKR NetLiquidation in USD; `P` is the signal's
+1. `E` is your account's IBKR NetLiquidation in USD, from the executor's
+   mid-bar reading when it is recent enough and otherwise read at the entry (see
+   [account-value reads](OPERATIONS.md#balance-sizing-account-values)); `P` is the signal's
    `entry.reference_price` (the leader's NQ decision-bar close); one MNQ unit's
    notional is `N = 2 × P`.
 2. The first base is `floor(6 × f × E / N)` MNQ units. Afterwards the last base

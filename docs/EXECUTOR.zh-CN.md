@@ -12,7 +12,7 @@
 
 在**空仓状态下每次新入场**时，执行器计算一笔组合仓位：
 
-1. `E` 为你账户的 IBKR NetLiquidation（美元）；`P` 为信号的 `entry.reference_price`（领单方 NQ 决策 K 线收盘价）；一个 MNQ 单位的名义价值为 `N = 2 × P`。
+1. `E` 为你账户的 IBKR NetLiquidation（美元），读数足够新时取自执行器在 K 线中段的读取，否则在入场时读取（见[账户净值读取](OPERATIONS.zh-CN.md#余额仓位的账户净值读取)）；`P` 为信号的 `entry.reference_price`（领单方 NQ 决策 K 线收盘价）；一个 MNQ 单位的名义价值为 `N = 2 × P`。
 2. 首次基准为 `floor(6 × f × E / N)` 个 MNQ 单位。之后使用日志数据库中上次的基准 `n`：只要 `n × N` 不超过 `6.6 × f × E` 就保持不变；超过时重置为 `floor(6 × f × E / N)`；当 `(n + 1) × N` 不超过 `5.88 × f × E` 时逐个单位增加。区间数值取自每个信号的 `sizing`，并乘以 `f`。
 3. 每个信号都带有该笔交易的 `sizing.weight`（大于 0 且不超过 1），执行器使用收到的权重。该笔交易为 `round_half_up(基准 × weight)` 个单位：即 `contract_month` 的 `units // 10` 张 NQ 加 `units % 10` 张 MNQ，两笔订单在同一次决策中发出。例如 17 个单位为 **1 NQ + 7 MNQ**；权重 0.4 时为 7 MNQ。没有最低数量：基准为 1 时，权重 0.4 取整为 0，该笔交易跳过；权重 0.65 交易 1 张 MNQ；基准为 2 时，权重 0.4 交易 1 张 MNQ。
 

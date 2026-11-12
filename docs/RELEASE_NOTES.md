@@ -1,11 +1,63 @@
-# Auto Quant 0.4.0 — steady executor performance
+# Auto Quant 0.4.1 — mid-bar balance reading
 
 English | [简体中文](RELEASE_NOTES.zh-CN.md)
 
-Prepared November 11, 2026 (US Pacific). Builds on 0.3.2. Trading rules, sizing
-formulas, protection rules, dependencies and the Gateway image are unchanged.
+Prepared November 12, 2026 (US Pacific). Builds on 0.4.0. Trading rules, the
+sizing band and formulas, the leverage fraction, protection rules, dependencies
+and the Gateway image are unchanged.
 
-## New in 0.4.0
+## New in 0.4.1
+
+- **Account-value reads no longer hold up the executor.** With balance sizing,
+  earlier releases read IBKR NetLiquidation every 30 seconds while flat, inside
+  the trading loop, so a slow IBKR answer delayed signals and orders until it
+  returned. 0.4.1 reads it once per 5-minute bar, 2:00 to 3:00 into the bar
+  (US Eastern), beside the trading loop: a signal, a stop move or the stop after
+  a fill never waits for it.
+- **Only while flat, only in the cash session.** The reading is taken during the
+  Nasdaq cash session (09:30–16:00 ET, 13:00 on early-close days, never on
+  weekends or exchange holidays) and only while the last broker reconciliation
+  found no position and no working order.
+- **Entries use the reading while it is current.** An entry uses the reading when
+  it is at most 360 seconds old and no fill has been recorded since it was taken;
+  otherwise it reads NetLiquidation directly, as before. A restart or an IBKR
+  reconnect discards the reading.
+- **Recorded in the journal.** Each reading is logged as `balance_reading` and
+  each failure as `balance_reading_failed`, without an alert. Each entry's
+  `balance_size` record shows `net_liquidation_source` (`mid_bar_reading` or
+  `direct_read`) with the reading's age or why it was not used.
+  `sizing.account_value_health` in `./follow-stack status` now updates at these
+  readings and at entries; see
+  [account-value checks](OPERATIONS.md#balance-sizing-account-values).
+- **Fixed-size configurations are unchanged** and read no account value.
+- **Upgrade from 0.3.0, 0.3.1, 0.3.2 or 0.4.0.** Journal, configuration and Gateway
+  code are identical, so no migration is needed and balance sizing is kept,
+  including on rollback. 0.2.0 and 0.1.12 keep their reviewed upgrade paths.
+
+## Update to 0.4.1
+
+From 0.4.0, 0.3.2, 0.3.1, 0.3.0, 0.2.0 or 0.1.12, follow [UPGRADE.md](UPGRADE.md):
+stop the executor from the old directory while the account has no blocking
+positions or working orders, keep Gateway logged in, extract 0.4.1 into a new
+directory and run `./follow-stack upgrade --from <old directory>`. Both services
+stay stopped. From 0.3.0 or later, skip choosing the leverage fraction; your
+sizing is kept.
+
+## Validation and scope (0.4.1)
+
+363 source tests passed, including from the extracted corresponding source;
+331 tests passed inside the final ARM64 image (one skipped: example
+configurations need the source checkout). New tests cover the reading's window,
+cash-session calendar, flat-only rule, 360-second limit, fills after the reading,
+failures, reconnects and restarts, and a read held open while an entry fills and
+its stops are placed and moved. Docker lifecycle and credential-isolation checks
+passed, including with the final kit's launcher. The kit's journal, configuration
+and Gateway bytecode match 0.3.0, 0.3.1, 0.3.2 and 0.4.0 exactly; the 0.2.0 and
+0.1.12 kits pass the reviewed compatibility check. Tests use mocked brokers; this
+release has not yet run against a real Gateway or paper account. No running
+installation was updated and no broker orders were placed.
+
+## Retained from 0.4.0 — steady executor performance
 
 - **The executor no longer slows down as fills accumulate.** The IBKR connection
   keeps every execution since the executor started, and each step recorded all
@@ -29,14 +81,6 @@ formulas, protection rules, dependencies and the Gateway image are unchanged.
 - **Upgrade from 0.3.0, 0.3.1 or 0.3.2.** Journal, configuration and Gateway code
   are identical, so no migration is needed and balance sizing is kept, including
   on rollback. 0.2.0 and 0.1.12 keep their reviewed upgrade paths.
-
-## Update to 0.4.0
-
-From 0.3.2, 0.3.1, 0.3.0, 0.2.0 or 0.1.12, follow [UPGRADE.md](UPGRADE.md): stop
-the executor from the old directory while the account has no blocking positions
-or working orders, keep Gateway logged in, extract 0.4.0 into a new directory and
-run `./follow-stack upgrade --from <old directory>`. Both services stay stopped.
-From 0.3.0, 0.3.1 or 0.3.2, skip choosing the leverage fraction; your sizing is kept.
 
 ## Validation and scope (0.4.0)
 
@@ -92,7 +136,7 @@ broker orders were placed.
   only Gateway code difference is three setup messages; the updater pins the exact
   published old/new Gateway bytecode pair, and journal, configuration and Docker
   Gateway code must still match. Unknown changes remain blocked. The v0.3.0 kit
-  refuses 0.1.12, so upgrade directly to 0.4.0.
+  refuses 0.1.12, so upgrade directly to 0.4.1.
 - **Upgrade from 0.3.0.** Journal, configuration and Gateway code are identical,
   so no migration is needed and balance sizing is kept, including on rollback.
 - **Unrelated stock holdings during maintenance.** The upgrade/rollback check

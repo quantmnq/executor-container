@@ -28,6 +28,7 @@ from .broker import (
     OrderRequest,
     OrderView,
 )
+from .cash_session import CalendarUnavailable, bar_start, in_cash_session
 from .config import ExecutorConfig
 from .engine import (
     Action,
@@ -56,6 +57,11 @@ RECONNECT_INTERVAL = timedelta(seconds=10)
 STATE_ACK_INTERVAL = timedelta(seconds=60)
 NET_LIQUIDATION_MAX_AGE = timedelta(seconds=60)
 BALANCE_TRADES_KEPT = 100
+# Balance sizing reads NetLiquidation once per 5-minute US Eastern bar, 2:00-3:00
+# into the bar, so an entry at the bar close normally needs no read of its own.
+READING_BAR_MINUTES = 5
+READING_WINDOW = (timedelta(minutes=2), timedelta(minutes=3))
+READING_MAX_AGE = timedelta(seconds=360)
 
 
 def utc_now() -> datetime:
@@ -165,6 +171,29 @@ class Pending:
     quantity: int | None = None
 
 
+@dataclass(frozen=True)
+class BalanceReading:
+    """A mid-bar NetLiquidation and the executions recorded when its read began."""
+
+    taken_at: datetime
+    value: float
+    executions: int
+
+
+class _ReadingJob:
+    """One background NetLiquidation read; only the executor loop journals it."""
+
+    def __init__(self, taken_at: datetime, bar: datetime, executions: int) -> None:
+        self.taken_at = taken_at
+        self.bar = bar
+        self.executions = executions
+        self.value: float | None = None
+        self.error: str | None = None
+        self.finished_at = taken_at
+        self.discarded: str | None = None
+        self.done = threading.Event()
+
+
 def _acknowledged(pending: Pending, order: OrderView | None, filled: bool) -> bool:
     if pending.kind == "place":
         return order is not None or filled
@@ -201,7 +230,12 @@ class Executor:
         self._contracts: dict[tuple[str, str], FutureContract] = {}
         self._margin: dict[tuple[int, str, int], tuple[datetime, MarginEstimate]] = {}
         self._net_liquidation_cache: tuple[datetime, float] | None = None
-        self._net_liquidation_warmed = datetime.min.replace(tzinfo=UTC)
+        # The mid-bar reading lives only in this process: a restart starts without one.
+        self._reading: BalanceReading | None = None
+        self._reading_job: _ReadingJob | None = None
+        self._reading_bar: datetime | None = None
+        self._reading_absent = "no reading since the executor started"
+        self._executions_recorded = 0
         self._mismatch_since: datetime | None = None
         self._rejection_seq = int(journal.get_state("rejection_seq") or 0)
         self._absorbed: set[Execution] = set()
@@ -298,6 +332,7 @@ class Executor:
     def _step(self) -> list[Action]:
         now = self.clock()
         self._watch_feed(now)
+        self._collect_reading()
         if not self._ensure_connected(now):
             return []
         if now >= self._next_refresh:
@@ -365,6 +400,8 @@ class Executor:
             self._execute(action, now)
         if halt is None and not actions:
             self._warm_margin(views, now)
+            if self.config.sizing is not None and not sized:
+                self._start_reading(state, now)
         self._state_ack(views, now, halt)
         return sized + actions
 
@@ -416,6 +453,7 @@ class Executor:
     def _ensure_connected(self, now: datetime) -> bool:
         if self.broker.is_connected:
             return True
+        self._clear_reading("the reading was cleared when the IBKR connection was lost")
         if now < self._next_connect:
             return False
         self._next_connect = now + RECONNECT_INTERVAL
@@ -453,7 +491,11 @@ class Executor:
             # one again is a no-op, so skip those already recorded on every step.
             if execution in self._absorbed or not execution.order_ref.startswith(ORDER_REF_PREFIX):
                 continue
-            if self.journal.record_execution(execution):
+            revision = self.journal.notification_revision()
+            recorded = self.journal.record_execution(execution)
+            if self.journal.notification_revision() != revision:
+                self._executions_recorded += 1  # A new fill or a correction of one.
+            if recorded:
                 filled = True
                 purpose = execution.order_ref.split(":")[1]
                 contract = state.contracts.get(execution.con_id)
@@ -900,6 +942,110 @@ class Executor:
         self._net_liquidation_cache = (now, value)
         return value
 
+    def _reading_window_bar(self, now: datetime) -> datetime | None:
+        """The bar whose reading is due now: 2:00-3:00 into it, inside the cash session."""
+        try:
+            bar = bar_start(now, READING_BAR_MINUTES)
+            if not READING_WINDOW[0] <= now - bar < READING_WINDOW[1] or not in_cash_session(now):
+                return None
+        except CalendarUnavailable as exc:
+            self._warn_once("cash_session", f"mid-bar balance readings are off: {exc}")
+            return None
+        return bar
+
+    def _flat_and_idle(self, state: BrokerState) -> bool:
+        """The last complete reconciliation found no position and no working order."""
+        return (state.snapshot_complete and self._mismatch_since is None and not self.pending
+                and not any(state.positions.values()) and not self._expected_positions()
+                and not any(order.working for order in state.orders.values()))
+
+    def _start_reading(self, state: BrokerState, now: datetime) -> None:
+        """Start this bar's NetLiquidation reading on its own thread, at most once per bar.
+
+        The executor loop never waits for it: signals, stop moves and the stop after
+        a fill go ahead while IBKR answers, and the loop journals the result later.
+        """
+        if self._reading_job is not None:
+            return
+        bar = self._reading_window_bar(now)
+        if bar is None or bar == self._reading_bar or not self._flat_and_idle(state):
+            return
+        self._reading_bar = bar
+        job = _ReadingJob(now, bar, self._executions_recorded)
+        self._reading_job = job
+        try:
+            threading.Thread(target=self._read_balance, args=(job,), name="balance-reading",
+                             daemon=True).start()
+        except RuntimeError as exc:
+            job.error = f"cannot start the reading: {exc}"
+            job.done.set()
+
+    def _read_balance(self, job: _ReadingJob) -> None:
+        """Reading thread: ask IBKR only; the journal stays with the executor loop."""
+        try:
+            job.value = float(self.broker.net_liquidation())
+        except Exception as exc:  # noqa: BLE001 - journaled as balance_reading_failed
+            job.error = f"{type(exc).__name__}: {exc}"
+        job.finished_at = self.clock()
+        job.done.set()
+        self.wake.set()
+
+    def _collect_reading(self) -> None:
+        job = self._reading_job
+        if job is None or not job.done.is_set():
+            return
+        self._reading_job = None
+        detail = {"bar": job.bar.isoformat(), "taken_at": job.taken_at.isoformat(),
+                  "seconds": round((job.finished_at - job.taken_at).total_seconds(), 3)}
+        error = job.discarded or job.error
+        value = job.value
+        if error is None and (value is None or not math.isfinite(value) or value <= 0):
+            error = f"NetLiquidation {value} is not a positive amount"
+        if error is not None:
+            # Journaled only: an entry without a usable reading reads directly.
+            self.journal.log("balance_reading_failed", {**detail, "error": error})
+            LOGGER.info("mid-bar NetLiquidation reading failed: %s", error)
+            if self._reading is None:
+                self._reading_absent = f"the last reading failed ({error})"
+            if job.discarded is None:
+                self._record_sizing_health("unavailable", job.finished_at)
+            return
+        assert value is not None
+        self._reading = BalanceReading(job.taken_at, value, job.executions)
+        self.journal.log("balance_reading", {**detail, "net_liquidation": value})
+        LOGGER.debug("mid-bar NetLiquidation reading %.2f in %.3f s", value, detail["seconds"])
+        self._record_sizing_health("ready", job.finished_at)
+
+    def _clear_reading(self, reason: str) -> None:
+        if self._reading_job is not None and self._reading_job.discarded is None:
+            self._reading_job.discarded = reason
+        if self._reading is not None:
+            self._reading = None
+            self._reading_absent = reason
+
+    def _reading_unused(self, now: datetime) -> str | None:
+        """Why an entry now cannot use the mid-bar reading; None when it can."""
+        reading = self._reading
+        if reading is None:
+            return "a reading was in progress" if self._reading_job is not None else self._reading_absent
+        if self._executions_recorded != reading.executions:
+            return "an execution was recorded after the reading"
+        age = (now - reading.taken_at).total_seconds()
+        if not 0 <= age <= READING_MAX_AGE.total_seconds():
+            return f"the reading is {age:.1f} s old, outside 0-{READING_MAX_AGE.total_seconds():.0f} s"
+        return None
+
+    def _entry_net_liquidation(self, now: datetime) -> tuple[float | None, dict[str, Any]]:
+        """The mid-bar reading when it is usable, otherwise a direct read as before."""
+        unused = self._reading_unused(now)
+        if unused is None:
+            assert self._reading is not None
+            age = round((now - self._reading.taken_at).total_seconds(), 1)
+            return self._reading.value, {"net_liquidation_source": "mid_bar_reading",
+                                         "reading_age_seconds": age}
+        return self._net_liquidation(now), {"net_liquidation_source": "direct_read",
+                                            "reading_unused": unused}
+
     def _record_sizing_health(self, status: str, now: datetime) -> None:
         previous = json.loads(self.journal.get_state("sizing_health") or "null")
         current = {"status": status, "checked_at": now.isoformat()}
@@ -930,8 +1076,12 @@ class Executor:
             del trades[old]
         self.journal.set_state("balance_trades", json.dumps(trades))
         self.journal.log("balance_size", {"trade": key, **detail})
-        LOGGER.info("balance size for %s: %s (base %s, weight %s)", key, book_label(quantities),
-                    detail["base"], detail["weight"])
+        if detail["net_liquidation_source"] == "mid_bar_reading":
+            source = f"mid-bar reading {detail['reading_age_seconds']:g} s old"
+        else:
+            source = f"direct read; {detail['reading_unused']}"
+        LOGGER.info("balance size for %s: %s (base %s, weight %s, NetLiquidation from %s)", key,
+                    book_label(quantities), detail["base"], detail["weight"], source)
         return None
 
     def _balance_quantities(self, target: Target, now: datetime) -> tuple[dict[str, int] | None, Any]:
@@ -942,7 +1092,7 @@ class Executor:
         fraction = self.config.sizing.leverage_fraction
         last = json.loads(self.journal.get_state("balance_base") or "null")
         previous = None if last is None else int(last["base"])
-        equity = self._net_liquidation(now)
+        equity, source = self._entry_net_liquidation(now)
         price = target.entry.reference_price
         if equity is None or price is None:
             missing = "NetLiquidation" if equity is None else "reference price"
@@ -970,8 +1120,9 @@ class Executor:
         if over:
             return None, f"order quantity {' and '.join(over)} exceeds risk.max_quantity {cap}"
         return quantities, {**quantities, "base": base, "units": units,
-                            "weight": band.weight, "net_liquidation": equity, "reference_price": price,
-                            "leverage_fraction": fraction, "at": now.isoformat()}
+                            "weight": band.weight, "net_liquidation": equity, **source,
+                            "reference_price": price, "leverage_fraction": fraction,
+                            "at": now.isoformat()}
 
     def _screen_entries(self, actions: list[Action], now: datetime) -> list[Action]:
         """Check margin and stop risk once for every entry order of this decision."""
@@ -1109,12 +1260,8 @@ class Executor:
         if target.direction and target.entry is not None and now <= target.entry.deadline:
             return
         if self.config.sizing is not None:
-            # Quantities are only known at the entry; keep NetLiquidation fresh instead,
-            # at most every 30 s even while IBKR cannot report it.
-            if now - self._net_liquidation_warmed >= NET_LIQUIDATION_MAX_AGE / 2:
-                self._net_liquidation_warmed = now
-                self._net_liquidation_cache = None
-                self._net_liquidation(now)
+            # Quantities are only known at the entry. NetLiquidation comes from the
+            # mid-bar reading (see _start_reading) or a direct read at the entry.
             return
         contract = self._contract(self.config.root, target.contract_month)
         if contract is None:

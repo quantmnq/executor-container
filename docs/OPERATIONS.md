@@ -23,13 +23,28 @@ exit. A new installation does not automatically adopt existing manual positions.
 
 ## Balance-sizing account values
 
-With balance sizing, the running executor reads IBKR NetLiquidation while flat
-(at most every 30 seconds) and again before sizing an entry. `./follow status`
-(or `./follow-stack status`) shows the latest result under
+With balance sizing, the running executor reads IBKR NetLiquidation once per
+5-minute bar, 2:00 to 3:00 into the bar (US Eastern), during the Nasdaq cash
+session: 09:30–16:00 ET, or 13:00 on early-close days, and never on weekends or
+exchange holidays. It reads only while the last broker reconciliation found no
+position and no working order. The read runs beside the trading loop, so it never
+delays a signal, a stop move or the stop placed after a fill.
+
+An entry uses that reading when it is at most 360 seconds old and no fill has
+been recorded since it was taken. Otherwise the entry reads NetLiquidation
+directly, as before. A restart or an IBKR reconnect discards the reading. The
+journal log records each reading as `balance_reading` and each failure as
+`balance_reading_failed`; a failed reading sends no alert. Each entry's
+`balance_size` record shows `net_liquidation_source` (`mid_bar_reading` or
+`direct_read`) with either `reading_age_seconds` or `reading_unused`, the reason
+the reading was not used.
+
+`./follow status` (or `./follow-stack status`) shows the latest read under
 `sizing.account_value_health`: `status` is `ready` or `unavailable`, with its
 `checked_at` time. Check the time as well as the status: reads pause while a
-position is open, so an old record does not prove current readiness. Gateway
-handshake health alone does not establish balance-sizing readiness.
+position is open and outside the cash session, so an old record does not prove
+current readiness. Gateway handshake health alone does not establish
+balance-sizing readiness.
 
 If a read fails, an entry reuses the last sizing base when one exists and is
 otherwise refused; the executor never guesses a size. Never reset the journal or

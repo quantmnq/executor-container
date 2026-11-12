@@ -392,15 +392,6 @@ class BookSizingRuleTests(BookTestCase):
         self.assertEqual(recovered["status"], "ready")
         self.assertNotEqual(recovered["checked_at"], failed["checked_at"])
 
-    def test_net_liquidation_warmup_is_throttled_while_ibkr_cannot_report_it(self) -> None:
-        self.broker.net_liq_error = TimeoutError("summary timed out")
-        self.executor.on_signal(target(1, "exit", "flat"))
-        self.settle(100)  # ten seconds of loop steps
-        self.assertEqual(self.broker.calls.count(("net_liquidation", None)), 1)
-        self.clock.advance(30)
-        self.settle(1)
-        self.assertEqual(self.broker.calls.count(("net_liquidation", None)), 2)
-
     def test_a_small_book_never_resolves_nq(self) -> None:
         self.executor.on_signal(self.entry(weight=0.4))
         self.settle()
