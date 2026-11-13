@@ -50,10 +50,11 @@ If a read fails, an entry reuses the last sizing base when one exists and is
 otherwise refused; the executor never guesses a size. Never reset the journal or
 replay a refused signal to recover a missed trade.
 
-With the bundled IBKR API version, the executor cancels each account-summary read
-in the older message format. Gateway did not release subscriptions cancelled in
-the newer protobuf format and refused further reads with IBKR error 322. Repeated
-322 errors after an IBKR API upgrade need a new review.
+The executor cancels each account-summary read in the older message format,
+whatever API version the connection negotiates. Gateway does not release
+subscriptions cancelled in the newer protobuf format and refuses further reads
+with IBKR error 322, which the log shows as `account summary refused (322)`.
+Repeated 322 errors after an IBKR API upgrade need a new review.
 
 ## Settings and risk limits
 

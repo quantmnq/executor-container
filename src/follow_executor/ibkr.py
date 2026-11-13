@@ -41,7 +41,8 @@ RECONNECT_CODES = frozenset({504, 1100, 1101, 1102, 1300, 2110})
 # "Couldn't connect to TWS" and "Not connected" repeat on every retry while the
 # Gateway is down; the executor logs the outage once and its recovery once.
 NOT_CONNECTED_CODES = frozenset({502, 504})
-# Negotiated API version whose protobuf account-summary cancellation leaks.
+# Highest negotiated API version at which the legacy account-summary
+# cancellation was validated against a real Gateway.
 LEGACY_SUMMARY_CANCEL_VERSION = 226
 
 
@@ -132,14 +133,15 @@ class IBKRBroker:
             def useProtoBuf(self, msgId: int) -> bool:
                 from ibapi.message import OUT
 
-                # At negotiated API version 226 the Gateway accepts protobuf
-                # summary requests but does not release their subscriptions on
-                # protobuf cancellation (error 322 after two reads). The 10.50.02
-                # SDK caps negotiation at 226, so this covers every Gateway at or
-                # above it; an SDK upgrade must re-validate (see the guard test).
-                # Every other message/version keeps the SDK's negotiated path.
-                if (msgId == OUT.CANCEL_ACCOUNT_SUMMARY
-                        and self.serverVersion() == LEGACY_SUMMARY_CANCEL_VERSION):
+                # The Gateway accepts protobuf summary requests but ignores the
+                # protobuf cancellation the SDK sends from server version 207 on
+                # (seen at 225 and 226), so each read leaves its subscription
+                # open and the third read on a connection fails with error 322.
+                # The legacy cancellation is honoured, so it is always used; the
+                # SDK's legacy branch keeps its not-connected and send-failure
+                # reporting. An SDK upgrade must re-validate (see the guard test).
+                # Every other message keeps the SDK's negotiated path.
+                if msgId == OUT.CANCEL_ACCOUNT_SUMMARY:
                     return False
                 return super().useProtoBuf(msgId)
 

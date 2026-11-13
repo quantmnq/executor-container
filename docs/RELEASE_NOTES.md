@@ -1,12 +1,60 @@
-# Auto Quant 0.4.2 — margin limit default
+# Auto Quant 0.4.3 — account-value reads on every Gateway version
 
 English | [简体中文](RELEASE_NOTES.zh-CN.md)
 
-Prepared November 13, 2026 (US Pacific). Builds on 0.4.1. Trading rules, the
-sizing band and formulas, the leverage fraction, protection rules, dependencies
-and the Gateway image are unchanged.
+Prepared November 13, 2026 (US Pacific). Builds on 0.4.2. Trading rules, the
+sizing band and formulas, the leverage fraction, protection rules, risk limits,
+dependencies and the Gateway image are unchanged.
 
-## New in 0.4.2
+## New in 0.4.3
+
+- **Balance sizing keeps reading the account value on every Gateway version.**
+  IBKR keeps at most two account-value (account-summary) requests open per
+  connection, and the Gateway ignores the newer protobuf form of the message
+  that closes one. 0.3.2 sent the older form, which the Gateway honours, only
+  when the connection negotiated API version 226, as the bundled Gateway does.
+  Against a Gateway that negotiates an earlier version (207 to 225), each read
+  stayed open, every read after the second on a connection failed with IBKR
+  error 322, and an entry reused the last sizing base or, without one, was
+  refused. The executor now closes every account-value read in the older
+  format, whatever version the connection negotiates; every other API message
+  keeps the client's normal format.
+- **Failed reads still say why and still close.** A read IBKR refuses, or one
+  that times out, is closed all the same, and the refusal is logged with its
+  IBKR code (for example `account summary refused (322)`).
+- **Fixed-size configurations are unchanged** and read no account value.
+- **Upgrade from 0.4.2 directly.** Journal, configuration and Gateway code are
+  identical to 0.4.2. 0.3.0 through 0.4.1 upgrade through the reviewed 0.4.2
+  migration, which also brings the 1.0 `risk.max_margin_fraction` default; 0.2.0
+  and 0.1.12 keep their reviewed upgrade paths.
+
+## Update to 0.4.3
+
+From 0.4.2, 0.4.1, 0.4.0, 0.3.2, 0.3.1, 0.3.0, 0.2.0 or 0.1.12, follow [UPGRADE.md](UPGRADE.md):
+stop the executor from the old directory while the account has no blocking
+positions or working orders, keep Gateway logged in, extract 0.4.3 into a new
+directory and run `./follow-stack upgrade --from <old directory>`. Both services
+stay stopped. From 0.3.0 or later, skip choosing the leverage fraction; your
+sizing is kept.
+
+## Validation and scope (0.4.3)
+
+365 source tests passed, including from the extracted corresponding source;
+333 tests passed inside the final ARM64 image (one skipped: example
+configurations need the source checkout). New tests check that the close
+message goes out in the older format at negotiated versions 207, 225 and 226
+while requests keep the client's format, and that a read refused with error 322
+or timed out is still closed and raises its cause; they fail against 0.4.2's
+version check. Docker lifecycle and credential-isolation checks passed,
+including with the final kit's launcher. The kit's journal, configuration and
+Gateway bytecode match 0.4.2 exactly; the published 0.4.2 kit upgrades and rolls
+back directly, the 0.3.0 through 0.4.1 kits pass the reviewed compatibility
+check in both directions, as do 0.2.0 and 0.1.12. Tests use mocked brokers;
+this release has not yet run against a real Gateway or paper account, and no
+Gateway that negotiates an earlier API version was available to confirm the
+fix. No running installation was updated and no broker orders were placed.
+
+## Retained from 0.4.2 — margin limit default
 
 - **The margin limit defaults to 1.0.** `risk.max_margin_fraction`, the share of
   equity that initial margin after an entry may use, now defaults to 1.0 instead
@@ -19,21 +67,11 @@ and the Gateway image are unchanged.
   raise it is your decision; see
   [settings and risk limits](OPERATIONS.md#settings-and-risk-limits). To keep 0.5
   in a configuration that leaves the key out, add `"max_margin_fraction": 0.5`
-  under `risk` before starting 0.4.2.
-- **Upgrade from 0.3.0, 0.3.1, 0.3.2, 0.4.0 or 0.4.1 as a reviewed migration.**
-  Journal and Gateway code are identical. The configuration code differs only in
-  this default, so the updater accepts the exact configuration bytecode those
-  releases share, and rolling back to them keeps balance sizing. 0.2.0 and 0.1.12
-  keep their reviewed upgrade paths.
-
-## Update to 0.4.2
-
-From 0.4.1, 0.4.0, 0.3.2, 0.3.1, 0.3.0, 0.2.0 or 0.1.12, follow [UPGRADE.md](UPGRADE.md):
-stop the executor from the old directory while the account has no blocking
-positions or working orders, keep Gateway logged in, extract 0.4.2 into a new
-directory and run `./follow-stack upgrade --from <old directory>`. Both services
-stay stopped. From 0.3.0 or later, skip choosing the leverage fraction; your
-sizing is kept.
+  under `risk` before starting the new release.
+- **Upgrades from 0.3.0 through 0.4.1 are a reviewed migration.** Journal and
+  Gateway code are identical. The configuration code differs only in this
+  default, so the updater accepts the exact configuration bytecode those
+  releases share, and rolling back to them keeps balance sizing.
 
 ## Validation and scope (0.4.2)
 

@@ -5,7 +5,7 @@ IBKR account**, and choose a **leverage fraction** of the leader's balance
 sizing (NQ plus an MNQ remainder), or a fixed MNQ/NQ quantity. The executor
 receives signed targets from a signal provider and trades at your chosen size.
 
-**Upgrading from 0.1.12, 0.2.0, 0.3.0, 0.3.1, 0.3.2, 0.4.0 or 0.4.1?** Follow [UPGRADE.md](docs/UPGRADE.md) /
+**Upgrading from 0.1.12, 0.2.0, 0.3.0, 0.3.1, 0.3.2, 0.4.0, 0.4.1 or 0.4.2?** Follow [UPGRADE.md](docs/UPGRADE.md) /
 [升级指南](docs/UPGRADE.zh-CN.md) while flat.
 
 This repository contains only the follower. A running signal provider and a
@@ -150,7 +150,7 @@ strategy profitable. [Execution behavior and recovery](docs/EXECUTOR.md).
 - `~/.local/state/follow-executor/executor.sqlite3`: durable journal; keep it.
 - `~/.config/systemd/user/follow-executor.service`: local service definition.
 
-In container release 0.4.2, the executor cannot access the managed Gateway
+In container release 0.4.3, the executor cannot access the managed Gateway
 credential directory or maintenance backups through its filesystem mounts.
 These paths are obscured by empty read-only mounts in executor commands and
 services; the host controller and Gateway retain their existing files. Setup

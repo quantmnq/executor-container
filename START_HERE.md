@@ -9,7 +9,7 @@ shows how to open a terminal on Windows/Mac, connect to Ubuntu, transfer the
 kit and answer the wizard. Both Gateway and executor use containers.
 The Chinese guide is [here](docs/SETUP.zh-CN.md).
 
-**Already running 0.1.12, 0.2.0, 0.3.0, 0.3.1, 0.3.2, 0.4.0 or 0.4.1?** Do not reinstall. Follow the
+**Already running 0.1.12, 0.2.0, 0.3.0, 0.3.1, 0.3.2, 0.4.0, 0.4.1 or 0.4.2?** Do not reinstall. Follow the
 [upgrade guide](docs/UPGRADE.md) while flat: it keeps your journal, token and
 sizing, installs this kit and regenerates the services.
 [升级指南（中文）](docs/UPGRADE.zh-CN.md).

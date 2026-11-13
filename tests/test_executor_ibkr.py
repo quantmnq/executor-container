@@ -400,6 +400,19 @@ class BookAdapterTests(unittest.TestCase):
             with self.subTest(message=message), self.assertRaisesRegex(RuntimeError, message):
                 self.make(**app).net_liquidation()
 
+    def test_a_refused_or_unanswered_read_raises_its_cause_and_still_cancels(self) -> None:
+        refused = self.make(error=(322, "Maximum number of account summary requests exceeded"))
+        with self.assertRaisesRegex(RuntimeError, r"\(322\): Maximum number of account summary"):
+            refused.net_liquidation()
+        self.assertEqual([call[0] for call in refused._app.calls],
+                         ["reqAccountSummary", "cancelAccountSummary"])
+        self.assertEqual(refused._summaries, {})
+        unanswered = self.make(rows=None)
+        with self.assertRaisesRegex(RuntimeError, "timed out"):
+            unanswered.net_liquidation()
+        self.assertEqual([call[0] for call in unanswered._app.calls],
+                         ["reqAccountSummary", "cancelAccountSummary"])
+
     def test_what_if_reports_margin_before_when_ibkr_supplies_it(self) -> None:
         broker = self.make()
         broker._app.what_if_state = ib_state("PreSubmitted", initMarginBefore="1000.5",
@@ -443,7 +456,7 @@ class BookAdapterTests(unittest.TestCase):
 
 @unittest.skipIf(Contract is None, "ibapi is not installed")
 class SummaryCancellationWireTests(unittest.TestCase):
-    def test_server_226_sends_legacy_cancel_with_matching_request_id(self):
+    def test_every_protobuf_server_version_sends_the_legacy_cancel(self):
         from unittest.mock import patch
 
         from ibapi.message import OUT
@@ -451,16 +464,21 @@ class SummaryCancellationWireTests(unittest.TestCase):
         from follow_executor.ibkr import IBKRBroker
 
         app = IBKRBroker(SETTINGS, "MNQ")._app
-        with patch.object(app, 'serverVersion', return_value=226), \
-                patch.object(app, 'isConnected', return_value=True), \
-                patch.object(app, 'sendMsg') as legacy, \
-                patch.object(app, 'sendMsgProtoBuf') as protobuf:
-            for request_id in range(1_000_000, 1_000_006):
-                app.reqAccountSummary(request_id, "All", "NetLiquidation")
-                app.cancelAccountSummary(request_id)
-                self.assertEqual(legacy.call_args.args, (OUT.CANCEL_ACCOUNT_SUMMARY, f"1\0{request_id}\0"))
-            self.assertEqual(legacy.call_count, 6)
-            self.assertEqual(protobuf.call_count, 6)  # Requests still use protobuf.
+        # 225 is the Gateway 10.50 / API 10.48 pairing that answered 322 on the
+        # third read; 226 is this SDK's cap.
+        for version in (207, 225, 226):
+            with self.subTest(version=version), \
+                    patch.object(app, 'serverVersion', return_value=version), \
+                    patch.object(app, 'isConnected', return_value=True), \
+                    patch.object(app, 'sendMsg') as legacy, \
+                    patch.object(app, 'sendMsgProtoBuf') as protobuf:
+                for request_id in range(1_000_000, 1_000_006):
+                    app.reqAccountSummary(request_id, "All", "NetLiquidation")
+                    app.cancelAccountSummary(request_id)
+                    self.assertEqual(legacy.call_args.args,
+                                     (OUT.CANCEL_ACCOUNT_SUMMARY, f"1\0{request_id}\0"))
+                self.assertEqual(legacy.call_count, 6)
+                self.assertEqual(protobuf.call_count, 6)  # Requests still use protobuf.
 
     def test_sdk_negotiation_cap_still_matches_the_reviewed_version(self):
         from ibapi.server_versions import MAX_CLIENT_VER
@@ -472,7 +490,7 @@ class SummaryCancellationWireTests(unittest.TestCase):
         # account-summary cancellation on a real Gateway before changing this.
         self.assertEqual(MAX_CLIENT_VER, LEGACY_SUMMARY_CANCEL_VERSION)
 
-    def test_other_server_versions_keep_sdk_negotiation(self):
+    def test_other_messages_keep_sdk_negotiation(self):
         from unittest.mock import patch
 
         from ibapi.client import EClient
@@ -481,9 +499,8 @@ class SummaryCancellationWireTests(unittest.TestCase):
         from follow_executor.ibkr import IBKRBroker
 
         app = IBKRBroker(SETTINGS, "MNQ")._app
-        for version in (180, 225, 227):
+        for version in (180, 207, 225, 226, 227):
             with self.subTest(version=version), patch.object(app, 'serverVersion', return_value=version):
-                self.assertEqual(app.useProtoBuf(OUT.CANCEL_ACCOUNT_SUMMARY),
-                                 EClient.useProtoBuf(app, OUT.CANCEL_ACCOUNT_SUMMARY))
-                self.assertEqual(app.useProtoBuf(OUT.REQ_ACCOUNT_SUMMARY),
-                                 EClient.useProtoBuf(app, OUT.REQ_ACCOUNT_SUMMARY))
+                self.assertFalse(app.useProtoBuf(OUT.CANCEL_ACCOUNT_SUMMARY))
+                for message in (OUT.REQ_ACCOUNT_SUMMARY, OUT.REQ_POSITIONS, OUT.PLACE_ORDER):
+                    self.assertEqual(app.useProtoBuf(message), EClient.useProtoBuf(app, message))
