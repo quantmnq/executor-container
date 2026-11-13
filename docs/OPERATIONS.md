@@ -69,8 +69,11 @@ including finished trades, so a setting change does not erase replay protection.
 
 Default maximum quantity is 10 contracts (hard maximum 100). To change the cap,
 stop while flat and edit `risk.max_quantity` in your private configuration, then
-use `settings` for the desired quantity. `risk.max_margin_fraction` defaults to
-0.5; `risk.max_stop_risk_usd` can impose an additional entry risk ceiling. These
+use `settings` for the desired quantity. `risk.max_margin_fraction` (0.05 to
+1.0) defaults to 1.0; before 0.4.2 it defaulted to 0.5, and configurations
+written then keep their explicit 0.5 after an upgrade. To change it, stop while
+flat and edit it in your private configuration. `risk.max_stop_risk_usd` can
+impose an additional entry risk ceiling. These
 settings are limits, not a recommendation for a suitable position size. NQ has
 a different dollar multiplier from MNQ; the executor uses the selected root's
 multiplier for its optional stop-risk calculation.

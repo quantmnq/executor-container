@@ -133,7 +133,7 @@ def initial_config(path: Path, *, advanced: bool = False) -> int:
         },
         **({"sizing": {"mode": "balance", "leverage_fraction": fraction}} if fraction is not None
            else {"instrument": {"root": root, "quantity": quantity}}),
-        "risk": {"max_quantity": 10, "max_margin_fraction": 0.5,
+        "risk": {"max_quantity": 10, "max_margin_fraction": 1.0,
                  "max_entry_slippage_points": 10, "max_stop_risk_usd": None},
         "feed": {"send_acks": True},
     }

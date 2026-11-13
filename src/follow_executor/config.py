@@ -240,7 +240,7 @@ def parse_config(raw: Any) -> ExecutorConfig:
         quantity=quantity,
         max_quantity=max_quantity,
         max_entry_slippage_points=_number(risk, "max_entry_slippage_points", 10.0, 0.25, 500.0),
-        max_margin_fraction=_number(risk, "max_margin_fraction", 0.5, 0.05, 1.0),
+        max_margin_fraction=_number(risk, "max_margin_fraction", 1.0, 0.05, 1.0),
         max_stop_risk_usd=None if stop_risk is None else float(stop_risk),
         margin_check_max_age_seconds=_number(risk, "margin_check_max_age_seconds", 900, 60, 86400),
         heartbeat_timeout_seconds=_number(feed, "heartbeat_timeout_seconds", 30, 10, 600),

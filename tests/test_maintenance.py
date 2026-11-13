@@ -20,7 +20,7 @@ from unittest.mock import Mock, patch
 from follow_executor import gateway, gateway_docker, maintenance, stack
 from follow_executor.config import ConfigError
 from follow_executor.journal import Journal
-from follow_executor.local import private_write
+from follow_executor.local import private_write, settings_identity
 from follow_executor.maintenance_probe import FlatAccountProbe, check
 from follow_executor.maintenance_state import journal_snapshot
 from follow_executor.setup import initial_config
@@ -182,7 +182,7 @@ class MaintenanceTests(unittest.TestCase):
         commands.assert_not_called()
 
     @contextlib.contextmanager
-    def older_release(self, *, journal="same compatible test bytes"):
+    def older_release(self, *, journal="same compatible test bytes", name="0.2.0"):
         from follow_executor.release import verify_release
 
         def versions(path):
@@ -193,7 +193,7 @@ class MaintenanceTests(unittest.TestCase):
             return result
 
         same = hashlib.sha256(b"same compatible test bytes").hexdigest()
-        reviewed = {"0.2.0": {"config": "reviewed config", "local": "reviewed local"}}
+        reviewed = {name: {"config": "reviewed config", "local": "reviewed local"}}
         with patch.object(maintenance, "verify_release", side_effect=versions), \
                 patch.object(maintenance, "REVIEWED_MIGRATIONS", reviewed), \
                 patch.object(maintenance, "SHARED_MODULES", ("journal", "gateway", "gateway_docker")):
@@ -217,6 +217,23 @@ class MaintenanceTests(unittest.TestCase):
         with self.older_release(), self.environment(["ROLLBACK PAPER 1 MNQ"]):
             self.assertEqual(maintenance.switch(self.new, rollback=True), 0)
         self.assertEqual(self.old.pin.read_text().strip(), self.old.image_metadata()["id"])
+
+    def test_rollback_to_a_reviewed_balance_release_keeps_balance_sizing(self):
+        with self.older_release(name="0.3.0"), self.environment(["UPGRADE PAPER 1 MNQ"]):
+            self.assertEqual(maintenance.switch(self.new, self.old.release), 0)
+        raw = json.loads(self.old.config.read_text())
+        raw.pop("instrument")
+        raw["sizing"] = {"mode": "balance", "leverage_fraction": 0.5}
+        private_write(self.old.config, json.dumps(raw))
+        # As './follow-stack settings' does: the journal follows the new size.
+        self.config = self.old.current_config()
+        journal = Journal(self.config.journal_path)
+        journal.set_state("settings_identity", settings_identity(self.config))
+        journal.close()
+        with self.older_release(name="0.3.0"), self.environment(["ROLLBACK PAPER BALANCE 0.5"]):
+            self.assertEqual(maintenance.switch(self.new, rollback=True), 0)
+        self.assertEqual(self.old.pin.read_text().strip(), self.old.image_metadata()["id"])
+        self.assertEqual(json.loads(self.old.config.read_text())["sizing"]["leverage_fraction"], 0.5)
 
     def test_unreviewed_configuration_or_changed_journal_code_is_refused(self):
         with self.older_release(journal="older journal code"), self.environment([]) as commands, \
@@ -264,10 +281,17 @@ class MaintenanceTests(unittest.TestCase):
                                                                  rollback=False))
 
     def test_reviewed_list_names_the_published_release(self):
-        self.assertEqual(set(maintenance.REVIEWED_MIGRATIONS), {"0.2.0"})
+        self.assertEqual(set(maintenance.REVIEWED_MIGRATIONS), {"0.2.0", "0.3.0"})
+        self.assertEqual(maintenance.READS_BALANCE_SIZING, {"0.3.0"})
         for digests in maintenance.REVIEWED_MIGRATIONS.values():
             self.assertEqual(set(digests), {"config", "local"})
             self.assertTrue(all(len(value) == 64 for value in digests.values()))
+        for name, digests in maintenance.REVIEWED_MIGRATIONS.items():
+            self.assertEqual(maintenance.reviewed_release(dict(digests, journal="any")), name)
+        self.assertIsNone(maintenance.reviewed_release(
+            dict(maintenance.REVIEWED_MIGRATIONS["0.3.0"], config="unknown")))
+        self.assertIsNone(maintenance.reviewed_release(
+            dict(maintenance.REVIEWED_MIGRATIONS["0.2.0"], local=maintenance.REVIEWED_MIGRATIONS["0.3.0"]["local"])))
 
     @unittest.skipUnless(hasattr(os, "fork"), "Linux crash recovery test")
     def test_process_kill_after_durable_marker_can_restore_without_journal_rewind(self):

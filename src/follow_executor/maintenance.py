@@ -20,12 +20,18 @@ from .release import verify_release
 # Reviewed migrations: earlier releases whose configuration and journal this
 # release reads unchanged, identified by their config/local bytecode digests.
 # Journal and Docker Gateway code must match exactly; the host Gateway has
-# a separate exact-pair allowlist below. A rollback to one of them
-# is allowed only while the configuration uses a fixed quantity it can read.
+# a separate exact-pair allowlist below. A rollback to a release that cannot
+# read balance sizing is allowed only while the configuration uses a fixed quantity.
 REVIEWED_MIGRATIONS = {
     "0.2.0": {"config": "082d4d0991e45ae8ba10b34adca27e360ff6b6d9ace5d700492d61dacf2ed927",
               "local": "5caf3387243751845e6bbb60337fbbbd2d8062cd16a0783996cc26628af51ad4"},
+    # Shared by 0.3.0 through 0.4.1. Since then only the max_margin_fraction default,
+    # used when a configuration omits the key, changed from 0.5 to 1.0.
+    "0.3.0": {"config": "2f7427ca18fdde88e262bfe99227a597bd2e8c0479384bc9ad5eca58d697b823",
+              "local": "54b09cb5d643d5986d8c72f5b27623ac2f1288c548b2afab96d9b5fe918e11ab"},
 }
+# Reviewed releases that read balance sizing, so a rollback to them may keep it.
+READS_BALANCE_SIZING = frozenset({"0.3.0"})
 SHARED_MODULES = ("journal", "gateway", "gateway_docker")
 
 # 0.1.12 -> 0.2.0 only adds three explanatory print() calls in gateway.configure.
@@ -36,14 +42,19 @@ REVIEWED_GATEWAY_MIGRATIONS = {
 }
 
 
+def reviewed_release(compatibility: dict) -> str | None:
+    """The reviewed earlier release whose configuration code these digests match."""
+    return next((name for name, known in REVIEWED_MIGRATIONS.items()
+                 if all(compatibility[module] == digest for module, digest in known.items())), None)
+
+
 def reviewed_migration(source: dict, target: dict, *, rollback: bool) -> bool:
     """True for a reviewed switch between this release and an older one."""
     older, newer = (target, source) if rollback else (source, target)
     gateway_reviewed = (older["gateway"], newer["gateway"]) in REVIEWED_GATEWAY_MIGRATIONS
     return (all(source[module] == target[module]
                 or (module == "gateway" and gateway_reviewed) for module in SHARED_MODULES)
-            and any(all(older[module] == digest for module, digest in known.items())
-                    for known in REVIEWED_MIGRATIONS.values()))
+            and reviewed_release(older) is not None)
 
 
 def record_path(wizard):
@@ -143,7 +154,8 @@ def switch(wizard, source_path: Path | None = None, *, rollback: bool = False) -
                                             rollback=rollback):
         raise ConfigError("Journal/configuration or Gateway compatibility differs. This update needs a separately "
                           "reviewed migration; automatic switching is refused.")
-    if migrating and rollback and source.current_config().sizing is not None:
+    if (migrating and rollback and source.current_config().sizing is not None
+            and reviewed_release(target_meta["compatibility"]) not in READS_BALANCE_SIZING):
         raise ConfigError("The retained release cannot read balance sizing. While flat, choose a fixed size with "
                           "'./follow-stack settings --root MNQ --quantity 1', then roll back.")
     source.require_gateway_ownership()

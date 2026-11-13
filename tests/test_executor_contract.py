@@ -14,7 +14,7 @@ from executor_support import STREAM, Leader, canonical, payload, target, write_c
 from test_executor_feed import RelayHarness
 
 from follow_executor.cli import main
-from follow_executor.config import ConfigError, load_config
+from follow_executor.config import ConfigError, load_config, parse_config
 from follow_executor.journal import Journal
 from follow_executor.signal import SignalError, parse_heartbeat, parse_target
 
@@ -97,6 +97,9 @@ class ConfigTests(unittest.TestCase):
     def test_defaults_and_limits(self) -> None:
         config = write_config(self.root, self.key)
         self.assertEqual((config.max_margin_fraction, config.clock_exit_grace_seconds), (0.5, 30.0))
+        raw = json.loads((self.root / "executor.json").read_text())
+        del raw["risk"]["max_margin_fraction"]
+        self.assertEqual(parse_config(raw).max_margin_fraction, 1.0)
         self.assertEqual(config.multiplier, 2.0)
         bad = {
             "paper flag on a live account": {"ibkr": {"port": 4001, "account": "U1234567", "account_type": "paper"}},

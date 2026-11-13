@@ -15,7 +15,7 @@
   "risk": {
     "max_quantity": 10,
     "max_entry_slippage_points": 10,
-    "max_margin_fraction": 0.5,
+    "max_margin_fraction": 1.0,
     "max_stop_risk_usd": null
   },
   "feed": {

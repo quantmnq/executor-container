@@ -1,8 +1,8 @@
-# Upgrade from 0.1.12, 0.2.0, 0.3.0, 0.3.1, 0.3.2 or 0.4.0 to 0.4.1
+# Upgrade from 0.1.12, 0.2.0, 0.3.0, 0.3.1, 0.3.2, 0.4.0 or 0.4.1 to 0.4.2
 
 English | [简体中文](UPGRADE.zh-CN.md)
 
-Version 0.4.1 keeps 0.3.0's **balance sizing**: you choose a leverage fraction `f` above 0
+Version 0.4.2 keeps 0.3.0's **balance sizing**: you choose a leverage fraction `f` above 0
 and at most 1 of the leader's 6x balance sizing, and each new entry trades NQ plus
 an MNQ remainder sized from your IBKR NetLiquidation and the `sizing.weight`
 each signal carries for its trade (above 0, at most 1). See
@@ -15,14 +15,27 @@ This guide is for the combined `follow-stack-…` container kit. Native
 quantity: the leader still sends `next_rth_open` exit plans (a stop cancel and
 an exit shortly before the regular open), so 0.2.0's pre-open protection stays valid, and 0.2.0
 ignores the new `sizing` field. It never uses signal weights or your balance.
-With balance sizing, 0.4.1 reads your account value without holding up signals
-and orders; an executor that has run for weeks without a restart also benefits
-from the 0.4.0 speed-up.
+With balance sizing, 0.4.2 reads your account value without holding up signals
+and orders, as 0.4.1 does; an executor that has run for weeks without a restart
+also benefits from the 0.4.0 speed-up.
 
-## Starting from 0.3.0, 0.3.1, 0.3.2 or 0.4.0
+## Starting from 0.3.0, 0.3.1, 0.3.2, 0.4.0 or 0.4.1
 
-0.4.1 changes only when balance sizing reads your account value; the band, the
-leverage fraction, the sizing formulas and the protection rules are unchanged.
+0.4.2 changes one default. `risk.max_margin_fraction`, the share of equity that
+initial margin after an entry may use, now defaults to 1.0 instead of 0.5: the
+setup wizard writes 1.0 into new configurations, and a configuration that leaves
+the key out now allows up to 1.0. **The upgrade does not edit your
+configuration**, so one written by an earlier wizard keeps its `0.5` and the
+executor still refuses an entry whose margin would exceed half of equity.
+Whether to raise it is your decision; see
+[settings and risk limits](OPERATIONS.md#settings-and-risk-limits). If your
+configuration leaves `risk.max_margin_fraction` out and you want to keep the
+earlier limit, add `"max_margin_fraction": 0.5` under `risk` while stopped and
+flat, before you start 0.4.2. Nothing else changes in trading, sizing or protection.
+
+From 0.3.0, 0.3.1, 0.3.2 or 0.4.0 it also adds the 0.4.1 change to when balance
+sizing reads your account value; the band, the leverage fraction, the sizing
+formulas and the protection rules are unchanged.
 Earlier releases read NetLiquidation every 30 seconds while flat, inside the
 executor's trading loop, so a slow IBKR answer held up signals and orders in the
 meantime. 0.4.1 reads it once per 5-minute bar, 2:00 to 3:00 into the bar, during
@@ -48,12 +61,15 @@ it also adds the 0.3.1 fixes: no IBKR client-ID collision (error 326) when
 `./follow-stack settings` switches sizing, a setup retry for a mistyped
 recovery-desktop password, an explanation of IBKR error 354 (missing market-data
 subscription) and unrelated long stock holdings permitted during maintenance.
-Journal, configuration and Gateway code are identical to 0.3.0, 0.3.1, 0.3.2 and
-0.4.0, so no migration is reviewed or needed. Use the steps below with your
+Journal and Gateway code are identical to 0.3.0, 0.3.1, 0.3.2, 0.4.0 and 0.4.1.
+The configuration code differs only in the margin default, so this is a reviewed
+migration: the updater accepts the exact configuration bytecode those releases
+share. Use the steps below with your
 `~/follow-stack-0.3.…-ubuntu24.04-arm64-cp312` or
-`~/follow-stack-0.4.0-ubuntu24.04-arm64-cp312` directory in place of every 0.2.0
+`~/follow-stack-0.4.…-ubuntu24.04-arm64-cp312` directory in place of every 0.2.0
 path, and skip step 6: your sizing, including balance sizing, is kept. Rolling
-back to 0.3.0, 0.3.1, 0.3.2 or 0.4.0 also keeps balance sizing.
+back to 0.3.0, 0.3.1, 0.3.2, 0.4.0 or 0.4.1 also keeps balance sizing; after a
+rollback, a configuration without `risk.max_margin_fraction` allows 0.5 again.
 
 ## Starting from 0.1.12
 
@@ -68,7 +84,7 @@ be authenticated for the read-only maintenance check. An upgrade never starts
 trading, changes account mode or selects balance sizing for you.
 
 0.3.1 was the first kit with this compatibility fix; the v0.3.0 kit refuses
-0.1.12, so upgrade directly to 0.4.1. Do not edit hashes to bypass checks.
+0.1.12, so upgrade directly to 0.4.2. Do not edit hashes to bypass checks.
 
 ## What is kept
 
@@ -76,7 +92,9 @@ The upgrade keeps your configuration, relay token, Gateway login files and data
 volume, trading journal, notification history and any existing halt. It makes a
 private backup of the configuration and a consistent journal backup. It replaces
 the executor image and regenerates both service definitions. It never closes
-positions, cancels orders or starts trading.
+positions, cancels orders or starts trading. It does not edit the configuration:
+an explicit `risk.max_margin_fraction` stays as it is, while a configuration
+without one now gets the 1.0 default instead of 0.5.
 
 ## 1. Check account positions and working orders
 
@@ -109,21 +127,21 @@ and any rollback read it.
 
 ## 3. Copy, verify and extract the new kit
 
-Transfer `follow-stack-0.4.1-ubuntu24.04-arm64-cp312.tar.gz` and its `.sha256`
+Transfer `follow-stack-0.4.2-ubuntu24.04-arm64-cp312.tar.gz` and its `.sha256`
 to Ubuntu as in [setup step 3](SETUP.md#3-copy-and-verify-the-download), then:
 
 ```bash
 cd ~/Downloads
-sha256sum -c follow-stack-0.4.1-ubuntu24.04-arm64-cp312.tar.gz.sha256
-tar -xzf follow-stack-0.4.1-ubuntu24.04-arm64-cp312.tar.gz -C ~
-cd ~/follow-stack-0.4.1-ubuntu24.04-arm64-cp312
+sha256sum -c follow-stack-0.4.2-ubuntu24.04-arm64-cp312.tar.gz.sha256
+tar -xzf follow-stack-0.4.2-ubuntu24.04-arm64-cp312.tar.gz -C ~
+cd ~/follow-stack-0.4.2-ubuntu24.04-arm64-cp312
 ```
 
 Require `OK`. Extract into this **new** directory; never over 0.2.0.
 
 ## 4. Install the new kit and regenerate the services
 
-From the 0.4.1 directory:
+From the 0.4.2 directory:
 
 ```bash
 ./follow-stack upgrade --from ~/follow-stack-0.2.0-ubuntu24.04-arm64-cp312
@@ -132,8 +150,8 @@ From the 0.4.1 directory:
 It verifies both kits, checks account-wide positions and orders without placing,
 cancelling or simulating any order, and asks you to type the shown confirmation,
 for example `UPGRADE PAPER 1 MNQ` (your current 0.2.0 size). It then backs up
-privately, stops Gateway, installs the 0.4.1 executor image and rewrites the
-executor and Gateway services. 0.2.0 to 0.4.1 is a reviewed migration: the
+privately, stops Gateway, installs the 0.4.2 executor image and rewrites the
+executor and Gateway services. 0.2.0 to 0.4.2 is a reviewed migration: the
 journal and Gateway code are unchanged and 0.2.0 settings load as they are.
 **Both services stay stopped.**
 
@@ -205,8 +223,8 @@ Keep the 0.2.0 directory until you no longer need a rollback.
 
 ## Roll back to 0.2.0 or 0.1.12
 
-For 0.3.0, 0.3.1, 0.3.2 or 0.4.0, run `./follow-stack rollback` while stopped and flat; no size change
-is needed. 0.2.0 and 0.1.12 cannot read balance sizing. While stopped and flat, from the 0.4.1
+For 0.3.0, 0.3.1, 0.3.2, 0.4.0 or 0.4.1, run `./follow-stack rollback` while stopped and flat; no size change
+is needed. 0.2.0 and 0.1.12 cannot read balance sizing. While stopped and flat, from the 0.4.2
 directory, first return to a fixed size, then roll back:
 
 ```bash

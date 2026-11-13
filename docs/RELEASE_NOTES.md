@@ -1,12 +1,55 @@
-# Auto Quant 0.4.1 — mid-bar balance reading
+# Auto Quant 0.4.2 — margin limit default
 
 English | [简体中文](RELEASE_NOTES.zh-CN.md)
 
-Prepared November 12, 2026 (US Pacific). Builds on 0.4.0. Trading rules, the
+Prepared November 13, 2026 (US Pacific). Builds on 0.4.1. Trading rules, the
 sizing band and formulas, the leverage fraction, protection rules, dependencies
 and the Gateway image are unchanged.
 
-## New in 0.4.1
+## New in 0.4.2
+
+- **The margin limit defaults to 1.0.** `risk.max_margin_fraction`, the share of
+  equity that initial margin after an entry may use, now defaults to 1.0 instead
+  of 0.5. The setup wizard writes 1.0 into new configurations, and a
+  configuration that leaves the key out now allows up to 1.0. The balance-sizing
+  example configuration also uses 1.0, as the fixed-size example already did.
+  The allowed range (0.05 to 1.0) and the what-if check itself are unchanged.
+- **Existing configurations keep their value.** An upgrade does not edit your
+  configuration, so one written by an earlier wizard keeps its `0.5`. Whether to
+  raise it is your decision; see
+  [settings and risk limits](OPERATIONS.md#settings-and-risk-limits). To keep 0.5
+  in a configuration that leaves the key out, add `"max_margin_fraction": 0.5`
+  under `risk` before starting 0.4.2.
+- **Upgrade from 0.3.0, 0.3.1, 0.3.2, 0.4.0 or 0.4.1 as a reviewed migration.**
+  Journal and Gateway code are identical. The configuration code differs only in
+  this default, so the updater accepts the exact configuration bytecode those
+  releases share, and rolling back to them keeps balance sizing. 0.2.0 and 0.1.12
+  keep their reviewed upgrade paths.
+
+## Update to 0.4.2
+
+From 0.4.1, 0.4.0, 0.3.2, 0.3.1, 0.3.0, 0.2.0 or 0.1.12, follow [UPGRADE.md](UPGRADE.md):
+stop the executor from the old directory while the account has no blocking
+positions or working orders, keep Gateway logged in, extract 0.4.2 into a new
+directory and run `./follow-stack upgrade --from <old directory>`. Both services
+stay stopped. From 0.3.0 or later, skip choosing the leverage fraction; your
+sizing is kept.
+
+## Validation and scope (0.4.2)
+
+364 source tests passed, including from the extracted corresponding source;
+332 tests passed inside the final ARM64 image (one skipped: example
+configurations need the source checkout). New tests cover the default for a
+configuration without the key, the value the wizard writes, and a rollback to a
+reviewed 0.3.0-line release that keeps balance sizing. Docker lifecycle and credential-isolation checks
+passed, including with the final kit's launcher. The kit's journal and Gateway
+bytecode match 0.3.0 through 0.4.1 exactly; the published 0.3.0, 0.3.1, 0.3.2,
+0.4.0 and 0.4.1 kits pass the new reviewed compatibility check in both
+directions, as do 0.2.0 and 0.1.12. Tests use mocked brokers; neither this
+release nor 0.4.1 has yet run against a real Gateway or paper account. No
+running installation was updated and no broker orders were placed.
+
+## Retained from 0.4.1 — mid-bar balance reading
 
 - **Account-value reads no longer hold up the executor.** With balance sizing,
   earlier releases read IBKR NetLiquidation every 30 seconds while flat, inside
@@ -30,18 +73,6 @@ and the Gateway image are unchanged.
   readings and at entries; see
   [account-value checks](OPERATIONS.md#balance-sizing-account-values).
 - **Fixed-size configurations are unchanged** and read no account value.
-- **Upgrade from 0.3.0, 0.3.1, 0.3.2 or 0.4.0.** Journal, configuration and Gateway
-  code are identical, so no migration is needed and balance sizing is kept,
-  including on rollback. 0.2.0 and 0.1.12 keep their reviewed upgrade paths.
-
-## Update to 0.4.1
-
-From 0.4.0, 0.3.2, 0.3.1, 0.3.0, 0.2.0 or 0.1.12, follow [UPGRADE.md](UPGRADE.md):
-stop the executor from the old directory while the account has no blocking
-positions or working orders, keep Gateway logged in, extract 0.4.1 into a new
-directory and run `./follow-stack upgrade --from <old directory>`. Both services
-stay stopped. From 0.3.0 or later, skip choosing the leverage fraction; your
-sizing is kept.
 
 ## Validation and scope (0.4.1)
 

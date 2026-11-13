@@ -112,7 +112,7 @@ Rules that protect you:
   Foreign-client orders cause a halt and require their owner's intervention;
   they are not cancelled through a global account-wide cancel.
 - **Margin.** Before an entry, an IBKR what-if must show initial margin at or
-  below `max_margin_fraction` of equity (default 0.5). It is cached for up to
+  below `max_margin_fraction` of equity (default 1.0). It is cached for up to
   15 minutes. If the check fails or is unavailable, the entry is refused. For
   a book, the NQ order's margin plus the MNQ order's increment must fit; when
   IBKR omits the figure before the order, the whole MNQ margin is added.
@@ -176,7 +176,7 @@ transmits an executable order (IBKR what-if requests are simulations).
 | `instrument.root`, `instrument.quantity` | — | without `sizing`: `NQ` or `MNQ`, and your fixed size |
 | `risk.max_quantity` | 10 | a cap on `quantity`, or on each balance order (at most 100) |
 | `risk.max_entry_slippage_points` | 10 | limit-price cap when `reference_price` is present |
-| `risk.max_margin_fraction` | 0.5 | initial margin after entry ÷ equity |
+| `risk.max_margin_fraction` | 1.0 | initial margin after entry ÷ equity |
 | `risk.max_stop_risk_usd` | null | optional ceiling on size × multiplier × stop distance |
 | `feed.clock_exit_grace_seconds` | 30 | delay before the exit-plan fallback |
 | `feed.heartbeat_timeout_seconds` | 30 | when to warn about a silent leader |

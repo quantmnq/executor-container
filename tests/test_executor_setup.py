@@ -54,6 +54,7 @@ class SetupTests(unittest.TestCase):
         broker.assert_not_called()
         config = load_config(self.path)
         self.assertEqual((config.root, config.quantity, config.ibkr.port), ('MNQ', 1, 4002))
+        self.assertEqual(json.loads(self.path.read_text())['risk']['max_margin_fraction'], 1.0)
         self.assertEqual(config.token(), 'secret-test-token')
         self.assertNotIn('secret-test-token', output)
         for path in (self.path, config.token_path, config.journal_path):
@@ -180,7 +181,8 @@ class SetupTests(unittest.TestCase):
     def test_balance_is_the_default_and_the_preview_can_be_skipped(self):
         code, output = self.call('configure', answers=['', 'DU1234567', '', '1', ''])
         self.assertEqual(code, 0, output)
-        self.assertEqual(load_config(self.path).sizing.leverage_fraction, 1.0)
+        config = load_config(self.path)
+        self.assertEqual((config.sizing.leverage_fraction, config.max_margin_fraction), (1.0, 1.0))
         self.assertIn('Preview skipped', output)
 
     def test_settings_switch_between_fixed_and_balance_while_flat(self):
