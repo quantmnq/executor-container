@@ -1,12 +1,67 @@
-# Auto Quant 0.4.3 — account-value reads on every Gateway version
+# Auto Quant 0.5.0 — browser setup console (preview)
 
 English | [简体中文](RELEASE_NOTES.zh-CN.md)
 
-Prepared November 13, 2026 (US Pacific). Builds on 0.4.2. Trading rules, the
+Prepared November 16, 2026 (US Pacific). Builds on 0.4.3. Trading rules, the
 sizing band and formulas, the leverage fraction, protection rules, risk limits,
 dependencies and the Gateway image are unchanged.
 
-## New in 0.4.3
+## New in 0.5.0
+
+- **Set up in your browser.** `./follow-stack console` opens a private page,
+  reached through your SSH connection, for the same steps as
+  `./follow-stack setup`: Docker and startup, the verified executor image,
+  account and sizing, Gateway login, phone approval, the readiness check and an
+  explicit start. See [CONSOLE.md](CONSOLE.md).
+- **The same checks and confirmations.** The page drives the terminal wizard's
+  own code, so it saves the same files and asks for the same typed phrases, such
+  as `START PAPER BALANCE 0.5`. Setup never starts trading.
+- **Status, logs and later changes.** A dashboard shows executor and Gateway
+  status and logs and stops following. A Settings card changes sizing and
+  Discord notifications while stopped, and requests halt recovery behind a typed
+  `RESUME`.
+- **Private by design.** The console listens only on the VM's 127.0.0.1. Each
+  printed link works once and becomes a private browser session. Tokens and
+  passwords go straight to the wizard and are never shown again or logged. It
+  closes after 30 idle minutes.
+- **Terminal setup is unchanged.** Every `./follow-stack` command works as
+  before.
+- **Upgrade from 0.4.3 or 0.4.2 directly.** Journal, configuration and Gateway
+  code are identical to 0.4.3. 0.3.0 through 0.4.1 upgrade through the reviewed
+  migration, which also brings the 1.0 `risk.max_margin_fraction` default; 0.2.0
+  and 0.1.12 keep their reviewed upgrade paths.
+
+## Update to 0.5.0
+
+From 0.4.3, 0.4.2, 0.4.1, 0.4.0, 0.3.2, 0.3.1, 0.3.0, 0.2.0 or 0.1.12, follow [UPGRADE.md](UPGRADE.md):
+stop the executor from the old directory while the account has no blocking
+positions or working orders, keep Gateway logged in, extract 0.5.0 into a new
+directory and run `./follow-stack upgrade --from <old directory>`. Both services
+stay stopped. From 0.3.0 or later, skip choosing the leverage fraction; your
+sizing is kept.
+
+## Validation and scope (0.5.0)
+
+391 source tests passed, including from the extracted corresponding source;
+333 tests passed inside the final ARM64 image (one skipped: example
+configurations need the source checkout). New tests pin every prompt the
+console answers to the wizard's wording, so a reworded prompt fails the build
+instead of the page; they also cover the one-time link, the cookie, Host,
+Origin and CSRF checks, refusals of out-of-range sizing and missing typed
+phrases, and a resumed setup that stops at each missing answer. An image built
+from the same console code accepted account answers through the console's
+input path, refused an out-of-range leverage fraction without saving anything
+and refused a second configuration. Docker lifecycle and credential-isolation
+checks passed, including with the final kit's launcher. The kit's journal,
+configuration and Gateway bytecode match 0.4.3 exactly; the published 0.4.3
+and 0.4.2 kits upgrade and roll back directly, the 0.3.0 through 0.4.1 kits pass
+the reviewed compatibility check in both directions, as do 0.2.0 and 0.1.12.
+This preview has not yet completed a setup against a real Gateway, an IBKR
+login or a paper account through the console, and has not yet been used by a
+first-time customer. No running installation was updated and no broker orders
+were placed.
+
+## Retained from 0.4.3 — account-value reads on every Gateway version
 
 - **Balance sizing keeps reading the account value on every Gateway version.**
   IBKR keeps at most two account-value (account-summary) requests open per
@@ -27,15 +82,6 @@ dependencies and the Gateway image are unchanged.
   identical to 0.4.2. 0.3.0 through 0.4.1 upgrade through the reviewed 0.4.2
   migration, which also brings the 1.0 `risk.max_margin_fraction` default; 0.2.0
   and 0.1.12 keep their reviewed upgrade paths.
-
-## Update to 0.4.3
-
-From 0.4.2, 0.4.1, 0.4.0, 0.3.2, 0.3.1, 0.3.0, 0.2.0 or 0.1.12, follow [UPGRADE.md](UPGRADE.md):
-stop the executor from the old directory while the account has no blocking
-positions or working orders, keep Gateway logged in, extract 0.4.3 into a new
-directory and run `./follow-stack upgrade --from <old directory>`. Both services
-stay stopped. From 0.3.0 or later, skip choosing the leverage fraction; your
-sizing is kept.
 
 ## Validation and scope (0.4.3)
 

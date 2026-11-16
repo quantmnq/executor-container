@@ -19,6 +19,8 @@ deploy/install-bytecode.sh
 deploy/public-files.txt
 docs/AGENT_SETUP.md
 docs/AGENT_SETUP.zh-CN.md
+docs/CONSOLE.md
+docs/CONSOLE.zh-CN.md
 docs/CONTAINER_SETUP.md
 docs/CONTAINER_SETUP.zh-CN.md
 docs/DISCORD.md
@@ -78,10 +80,13 @@ scripts/stack-bootstrap.py
 scripts/test-executor-container.py
 scripts/test-executor-isolation.py
 src/follow_executor/__init__.py
+src/follow_executor/answers.py
 src/follow_executor/broker.py
 src/follow_executor/cash_session.py
 src/follow_executor/cli.py
 src/follow_executor/config.py
+src/follow_executor/console.py
+src/follow_executor/console_page.py
 src/follow_executor/crypto.py
 src/follow_executor/engine.py
 src/follow_executor/executor.py
@@ -115,6 +120,7 @@ tests/rehearsal/maintenance-fixture.py
 tests/test_balance_reading.py
 tests/test_balance_sizing.py
 tests/test_bytecode_release.py
+tests/test_console.py
 tests/test_executor_container.py
 tests/test_executor_contract.py
 tests/test_executor_engine.py

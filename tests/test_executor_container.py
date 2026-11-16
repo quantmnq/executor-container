@@ -188,6 +188,20 @@ elif name == 'systemctl' and any(a in sys.argv for a in ['is-active', 'is-enable
         self.assertIn("Resolved XDG", result.stderr)
         self.assertFalse((self.root / "calls.jsonl").exists())
 
+    def test_console_answers_attach_stdin_without_a_terminal(self):
+        self.install()
+        result = subprocess.run([str(ROOT / "follow-container"), "configure", "--answers-stdin"],
+                                env=self.env, input="{}", text=True, capture_output=True, check=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        run = [call for call in self.calls() if call[0:2] == ["docker", "run"]][-1]
+        self.assertEqual(run[2:4], ["--rm", "-i"])
+        self.assertIn("--answers-stdin", run)
+        result = subprocess.run([str(ROOT / "follow-container"), "configure"],
+                                env=self.env, input="", text=True, capture_output=True, check=False)
+        run = [call for call in self.calls() if call[0:2] == ["docker", "run"]][-1]
+        self.assertNotIn("-i", run)
+        self.assertNotIn("-it", run)
+
     def test_stop_disables_without_invoking_broker_commands(self):
         self.install()
         result = self.run_launcher("stop")

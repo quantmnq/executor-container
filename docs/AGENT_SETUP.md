@@ -76,7 +76,7 @@ fixed `MNQ`/`NQ` quantity. With `balance` it asks for the **leverage fraction**
 - The start confirmation names the size: `START PAPER BALANCE 0.5` (or
   `START PAPER 1 MNQ` for a fixed size).
 
-Existing 0.1.12, 0.2.0, 0.3.0, 0.3.1, 0.3.2, 0.4.0, 0.4.1 or 0.4.2 customers upgrade with [UPGRADE.md](UPGRADE.md); their
+Existing 0.1.12, 0.2.0, 0.3.0, 0.3.1, 0.3.2, 0.4.0, 0.4.1, 0.4.2 or 0.4.3 customers upgrade with [UPGRADE.md](UPGRADE.md); their
 sizing, fixed or balance, keeps working unchanged.
 
 | Information | How to obtain it |
@@ -153,6 +153,10 @@ After account/cloud preparation, follow [SETUP.md](SETUP.md) in order:
    paper account ID, the sizing choice and leverage fraction, dedicated Gateway
    paper login, relay token and schedule first. Never answer hidden prompts
    through the agent transcript.
+   Alternatively, offer the [setup console](CONSOLE.md) preview: give the customer
+   the single `ssh … follow-stack console` command to run on their own computer.
+   You may read its progress, but the customer types every secret into the page
+   themselves; never fill credential fields or receive them in chat.
 3. Follow the Docker reboot instruction once needed, save progress, reconnect,
    and rerun the same command. Saved steps and credentials are reused.
 4. Customer approves Gateway authentication. The wizard configures API settings;

@@ -19,11 +19,15 @@ import sys
 from pathlib import Path
 
 from . import gateway, gateway_docker
+from .answers import NeedInput
 from .config import ConfigError, load_config
 from .local import exclusive, private_write
 
 # Exact refusal raised by gateway.configure before it saves anything.
 RECOVERY_PASSWORD_ERROR = "Use matching recovery passwords of exactly 8 printable ASCII characters"
+# A line the setup console reads from an action's output; never carries secrets.
+CONSOLE_MARK = "@@follow-console "
+REBOOT_HINT = "Reboot during a maintenance window"
 
 
 def command(args: list[str], *, capture: bool = True) -> subprocess.CompletedProcess:
@@ -101,18 +105,30 @@ class Stack:
         self.unit = f"follow-executor-container-{identity}.service"
         self.unit_path = self.config_base / "systemd/user" / self.unit
         self.gateway_unit = Path.home() / ".config/systemd/user" / gateway.SERVICE
+        # Answers submitted by the setup console; None for the terminal wizard.
+        self.answers: dict | None = None
 
-    def invoke(self, action: str, *options: str) -> int:
+    def need(self, group: str) -> None:
+        """In console mode, ask the console for a group of answers it has not sent."""
+        if self.answers is not None and group not in self.answers:
+            raise NeedInput(group)
+
+    def console_event(self, **event) -> None:
+        if self.answers is not None:
+            print(CONSOLE_MARK + json.dumps(event, sort_keys=True), flush=True)
+
+    def invoke(self, action: str, *options: str, stdin: str | None = None) -> int:
         env = dict(os.environ, DOCKER_HOST="unix:///var/run/docker.sock",
                    XDG_CONFIG_HOME=str(self.config_base), XDG_STATE_HOME=str(self.state_base),
                    FOLLOW_EXECUTOR_LAUNCHER="./follow-stack", FOLLOW_CHECK_QUOTES="1")
         for key in ("DOCKER_CONTEXT", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH"):
             env.pop(key, None)
         return subprocess.run([str(self.release / "follow-container"), action, *options],
-                              env=env, check=False).returncode
+                              env=env, check=False,
+                              input=None if stdin is None else stdin.encode()).returncode
 
-    def invoke_required(self, action: str, *options: str) -> None:
-        if self.invoke(action, *options):
+    def invoke_required(self, action: str, *options: str, stdin: str | None = None) -> None:
+        if self.invoke(action, *options, **({} if stdin is None else {"stdin": stdin})):
             raise ConfigError(f"'{action}' did not complete. Resolve the reported problem and rerun setup.")
 
     def maintenance_report(self, image_id: str) -> dict:
@@ -243,7 +259,8 @@ class Stack:
             except ConfigError as error:
                 # gateway.py stays byte-identical for reviewed upgrades, so retry its
                 # recovery-password refusal here. Nothing is saved before that check.
-                if action != "configure" or str(error) != RECOVERY_PASSWORD_ERROR:
+                if (action != "configure" or str(error) != RECOVERY_PASSWORD_ERROR
+                        or self.answers is not None):
                     raise
                 print("Recovery desktop password: use exactly 8 printable ASCII characters with no spaces, "
                       "entered twice identically. It is not your IBKR password. Nothing was saved; "
@@ -274,6 +291,7 @@ class Stack:
                 return 3
             command([str(self.release / "scripts/install-docker.sh")], capture=False)
             print("Docker installed. Reboot during a maintenance window, reconnect and rerun './follow-stack setup'.")
+            self.console_event(reboot=True)
             return 3
         if not docker_group_configured():
             if not local_docker_package():
@@ -285,6 +303,7 @@ class Stack:
                 return 3
             command([str(self.release / "scripts/install-docker.sh")], capture=False)
             print("Docker permissions saved. Reboot during a maintenance window, reconnect and rerun './follow-stack setup'.")
+            self.console_event(reboot=True)
             return 3
         docker_access()
         if not lingering():
@@ -303,12 +322,18 @@ class Stack:
 
         print("3/5  Account and personal relay access", flush=True)
         if not self.config.exists():
-            self.invoke_required("configure")
+            if self.answers is None:
+                self.invoke_required("configure")
+            else:
+                self.need("account")
+                # Answers travel on stdin, never in argv or the environment.
+                self.invoke_required("configure", "--answers-stdin", stdin=json.dumps(self.answers["account"]))
         current = self.current_config()
         print(f"Saved setup: {current.ibkr.account_type}, {current.size_label}. Credentials stay private.")
 
         print("4/5  Gateway login", flush=True)
         if not (self.gateway_dir / "gateway.json").exists():
+            self.need("gateway")
             self.gateway_action("configure", vnc=vnc)
         settings = gateway.load_settings(self.gateway_dir)
         if (settings["mode"], settings["port"]) != (current.ibkr.account_type, current.ibkr.port):
@@ -324,6 +349,7 @@ class Stack:
             print("Saved. Gateway stays available for login. Resume with './follow-stack setup'. Trading is stopped.")
             return 3
         print("5/5  Relay, account, journal and margin checks", flush=True)
+        self.console_event(step="readiness")
         result = self.invoke("check", "--quotes")
         if result:
             print("Readiness checks did not pass. Resolve the reported issue, then rerun './follow-stack setup'.")
@@ -376,6 +402,93 @@ class Stack:
         print("Continue setup: ./follow-stack setup; check broker/relay while stopped: ./follow-stack check")
         return 0
 
+    def facts(self) -> dict:
+        """The doctor's findings as data for the setup console; never raises or prompts."""
+
+        def problem(check) -> str | None:
+            try:
+                check()
+            except (ConfigError, OSError, subprocess.SubprocessError, ValueError, KeyError) as exc:
+                return str(exc)
+            return None
+
+        def state(name: str) -> str:
+            try:
+                return service_state(name)
+            except (ConfigError, OSError):
+                return "unknown"
+
+        report: dict = {"host_problem": problem(host_check),
+                        "docker_installed": shutil.which("docker") is not None}
+        report["docker_problem"] = (problem(docker_access) if report["docker_installed"]
+                                    else "Docker is not installed.")
+        try:
+            report["lingering"] = lingering()
+        except (ConfigError, OSError):
+            report["lingering"] = False
+        try:
+            image_id = self.image_metadata()["id"]
+            report["image_installed"] = (self.pin.exists() and self.unit_path.exists()
+                                         and self.pin.read_text().strip() == image_id)
+        except (ConfigError, OSError, ValueError, KeyError):
+            report["image_installed"] = False
+        report["config_saved"] = self.config.exists()
+        report["config"] = None
+        if report["config_saved"]:
+            try:
+                current = self.current_config()
+                report["config"] = {
+                    "mode": current.ibkr.account_type, "account": current.ibkr.account,
+                    "size": current.size_label,
+                    "start_phrase": f"START {current.ibkr.account_type.upper()} {current.size_label}",
+                }
+            except (ConfigError, OSError, ValueError, KeyError) as exc:
+                report["config_problem"] = str(exc)
+        report["gateway_saved"] = (self.gateway_dir / "gateway.json").exists()
+        report["gateway"] = None
+        if report["gateway_saved"]:
+            try:
+                settings = gateway.load_settings(self.gateway_dir, check_consistency=False)
+                report["gateway"] = {key: settings.get(key) for key in (
+                    "mode", "port", "vnc", "timezone", "daily_restart", "sunday_restart")}
+            except (ConfigError, OSError, ValueError, KeyError) as exc:
+                report["gateway_problem"] = str(exc)
+        report["gateway_unit_installed"] = self.gateway_unit.exists()
+        report["executor_service"] = state(self.unit)
+        report["gateway_service"] = state(gateway.SERVICE)
+        return report
+
+    def console_run(self, action: str, answers: dict) -> int:
+        """Run one setup-console action with the console's answers in place of prompts."""
+        from .answers import HOST_PROMPTS, scripted
+        from .maintenance import require_complete
+
+        self.answers = answers
+        try:
+            with scripted(HOST_PROMPTS, answers):
+                if action == "reboot":
+                    host_check()
+                    self.require_idle()
+                    print("Restarting the VM. Reconnect with the same SSH command in a minute or two.", flush=True)
+                    command(["sudo", "-n", "systemctl", "reboot"])
+                    return 0
+                require_complete(self)
+                with exclusive(self.state / "stack-setup.lock"):
+                    if action == "setup":
+                        gateway_answers = answers.get("gateway")
+                        vnc = not isinstance(gateway_answers, dict) or gateway_answers.get("vnc") is not False
+                        return self.setup(vnc=vnc)
+                    if action == "start":
+                        return self.start()
+                raise ConfigError(f"Unknown console action: {action}")
+        except NeedInput as need:
+            self.console_event(need=need.group)
+            return 10
+        except ConfigError as exc:
+            if REBOOT_HINT in str(exc):
+                self.console_event(reboot=True)
+            raise
+
 
 def main(release: Path, argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="follow-stack", description="Set up Gateway and executor containers; setup never starts trading.")
@@ -383,6 +496,10 @@ def main(release: Path, argv: list[str] | None = None) -> int:
     setup = commands.add_parser("setup", help="resume private setup and readiness checks")
     setup.add_argument("--no-vnc", action="store_true", help="disable recovery desktop for a new setup")
     commands.add_parser("doctor", help="check host, permissions and saved setup without changing services")
+    console = commands.add_parser("console", help="open the private setup console in your browser over SSH")
+    console.add_argument("--port", type=int, default=8765, help="local port on 127.0.0.1 (default 8765)")
+    run = commands.add_parser("console-run", help=argparse.SUPPRESS)
+    run.add_argument("action", choices=("setup", "start", "reboot"))
     commands.add_parser("start", help="explicitly confirm trading, then check and start")
     upgrade = commands.add_parser("upgrade", help="switch compatible releases while flat; leave both services stopped")
     upgrade.add_argument("--from", dest="source", type=Path, required=True, help="retained installed release directory")
@@ -422,6 +539,17 @@ def main(release: Path, argv: list[str] | None = None) -> int:
                 return stack.setup(vnc=not args.no_vnc) if args.command == "setup" else stack.start()
         if args.command == "doctor":
             return stack.doctor()
+        if args.command == "console":
+            from .console import serve
+
+            return serve(stack, port=args.port)
+        if args.command == "console-run":
+            # Started only by the console, which sends one JSON object on stdin.
+            raw = sys.stdin.read(65536)
+            answers = json.loads(raw) if raw.strip() else {}
+            if not isinstance(answers, dict):
+                raise ConfigError("Console answers must be a JSON object.")
+            return stack.console_run(args.action, answers)
         if args.command == "check":
             print(f"Gateway process: {service_state(gateway.SERVICE)} (account and quotes checked below).", flush=True)
             if "--skip-broker" not in options:

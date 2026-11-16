@@ -405,6 +405,32 @@ def _stop_on_signals(stop: threading.Event, wake: threading.Event | None = None)
     signal.signal(signal.SIGINT, handler)
 
 
+def configure_from_console(path: Path) -> int:
+    """First-time configure with the setup console's answers in place of prompts.
+
+    The answers arrive as one JSON object on stdin so the relay token never
+    appears in argv or the environment. ``initial_config`` validates and saves
+    exactly as it does for the terminal wizard.
+    """
+    from .answers import ACCOUNT_PROMPTS, NeedInput, scripted
+    from .setup import initial_config
+
+    if path.exists():
+        raise ConfigError("Account settings are already saved; change sizing with 'settings' while flat.")
+    raw = sys.stdin.read(65536)
+    try:
+        answers = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ConfigError("Console answers must be valid JSON.") from exc
+    if not isinstance(answers, dict):
+        raise ConfigError("Console answers must be a JSON object.")
+    try:
+        with scripted(ACCOUNT_PROMPTS, answers):
+            return initial_config(path)
+    except NeedInput as need:
+        raise ConfigError(f"The console did not supply '{need.group}'.") from None
+
+
 def main(argv: list[str] | None = None) -> int:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--config", default=str(default_config_path()))
@@ -412,6 +438,7 @@ def main(argv: list[str] | None = None) -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     configure = commands.add_parser("configure", parents=[common], help="guided first-time setup")
     configure.add_argument("--advanced", action="store_true")
+    configure.add_argument("--answers-stdin", action="store_true", help=argparse.SUPPRESS)
     settings = commands.add_parser(
         "settings", parents=[common],
         help="change sizing while flat; without options, ask for balance sizing or a fixed size")
@@ -419,6 +446,7 @@ def main(argv: list[str] | None = None) -> int:
     settings.add_argument("--quantity", type=int)
     settings.add_argument("--leverage-fraction", type=float,
                           help="balance sizing: fraction above 0, at most 1, of the leader's 6x band")
+    settings.add_argument("--preview-nq-price", type=float, help=argparse.SUPPRESS)
     check = commands.add_parser("check", parents=[common], help="verify relay, journal and IBKR")
     check.add_argument("--skip-broker", action="store_true")
     check.add_argument("--quotes", action="store_true", help="require a live quote; a closed market may leave this pending")
@@ -430,6 +458,7 @@ def main(argv: list[str] | None = None) -> int:
     commands.add_parser("resume", parents=[common], help="clear a halt and adopt the position")
     discord = commands.add_parser("discord", parents=[common], help="link private Discord notifications")
     discord.add_argument("action", choices=("link", "enable", "status", "unlink"))
+    discord.add_argument("--agree", help=argparse.SUPPRESS)
     gateway = commands.add_parser("gateway", parents=[common], help="manage IBC Gateway login automation")
     gateway.add_argument("action", choices=("configure", "start", "stop", "status", "logs", "run", "refresh", "container-stop"))
     gateway.add_argument("--backend", choices=("native", "docker"), help="Gateway installation backend (configure only)")
@@ -452,6 +481,8 @@ def main(argv: list[str] | None = None) -> int:
             if args.command == "configure":
                 from .setup import initial_config
 
+                if args.answers_stdin:
+                    return configure_from_console(path)
                 return initial_config(path, advanced=args.advanced)
             if args.command == "settings":
                 from .setup import change_settings, initial_config
@@ -465,12 +496,28 @@ def main(argv: list[str] | None = None) -> int:
                         parser.error("--leverage-fraction cannot be combined with --root or --quantity")
                     if not 0 < args.leverage_fraction <= 1:
                         parser.error("--leverage-fraction must be above 0 and at most 1")
+                if args.preview_nq_price is not None:
+                    # Setup console: show the existing size preview without a prompt.
+                    if args.leverage_fraction is None or not 0 < args.preview_nq_price < 1e6:
+                        parser.error("--preview-nq-price needs --leverage-fraction and a positive price")
+                    from .answers import ACCOUNT_PROMPTS, scripted
+
+                    with scripted(ACCOUNT_PROMPTS, {"preview_nq_price": str(args.preview_nq_price)}):
+                        return change_settings(path, fraction=args.leverage_fraction, interactive=True)
                 return change_settings(path, root=args.root, quantity=args.quantity,
                                        fraction=args.leverage_fraction)
             config = load_config(path)
             if args.command == "discord":
                 from .notifications import configure as configure_discord
 
+                if args.agree is not None:
+                    # Setup console: the customer typed the agreement into the page.
+                    if args.action != "link":
+                        parser.error("--agree applies to 'discord link' only")
+                    from .answers import DISCORD_PROMPTS, scripted
+
+                    with scripted(DISCORD_PROMPTS, {"agree": args.agree}):
+                        return configure_discord(path, config, args.action)
                 return configure_discord(path, config, args.action)
             if args.command in ("run", "watch", "check", "maintenance-check"):
                 journal_lock = config.journal_path.with_suffix(config.journal_path.suffix + ".lock")
