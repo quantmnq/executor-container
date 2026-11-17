@@ -1,12 +1,58 @@
-# Auto Quant 0.5.0 — browser setup console (preview)
+# Auto Quant 0.5.1 — market-order entries
 
 English | [简体中文](RELEASE_NOTES.zh-CN.md)
 
-Prepared November 16, 2026 (US Pacific). Builds on 0.4.3. Trading rules, the
-sizing band and formulas, the leverage fraction, protection rules, risk limits,
+Prepared November 17, 2026 (US Pacific). Builds on 0.5.0. The sizing band and
+formulas, the leverage fraction, protection rules, the other risk limits,
 dependencies and the Gateway image are unchanged.
 
-## New in 0.5.0
+## New in 0.5.1
+
+- **Every new entry is a market order.** Earlier releases sent a limit order at
+  the signal's `entry.reference_price` plus or minus
+  `risk.max_entry_slippage_points` (10 by default). When the price had already
+  moved further than that, the entry waited, and if it was still unfilled at
+  `entry.deadline` it was cancelled and the trade was missed. 0.5.1 enters at
+  the market whether or not the signal carries a reference price, so it follows
+  the leader after a fast move instead of missing the trade. The fill can be
+  further from the leader's price than before; the stop is still placed from
+  your actual fill.
+- **Unchanged around the entry.** A flat follower still opens nothing after
+  `entry.deadline`, and the margin and stop-risk checks still run before the
+  order. Exits, stops and the pre-open protection are unchanged.
+- **`risk.max_entry_slippage_points` is no longer used.** A configuration that
+  sets it still loads; you do not need to remove it. The setup wizard no longer
+  writes it.
+- **Upgrade from 0.5.0, 0.4.3 or 0.4.2 directly.** Journal, configuration and
+  Gateway code are identical to 0.5.0. 0.3.0 through 0.4.1 upgrade through the
+  reviewed migration, which also brings the 1.0 `risk.max_margin_fraction`
+  default; 0.2.0 and 0.1.12 keep their reviewed upgrade paths.
+
+## Update to 0.5.1
+
+From 0.5.0, 0.4.3, 0.4.2, 0.4.1, 0.4.0, 0.3.2, 0.3.1, 0.3.0, 0.2.0 or 0.1.12, follow [UPGRADE.md](UPGRADE.md):
+stop the executor from the old directory while the account has no blocking
+positions or working orders, keep Gateway logged in, extract 0.5.1 into a new
+directory and run `./follow-stack upgrade --from <old directory>`. Both services
+stay stopped. From 0.3.0 or later, skip choosing the leverage fraction; your
+sizing is kept.
+
+## Validation and scope (0.5.1)
+
+391 source tests passed, including from the extracted corresponding source;
+333 tests passed inside the final ARM64 image (one skipped: example
+configurations need the source checkout). Engine and balance-sizing tests now
+require a market entry, with no limit price, whether or not the signal carries
+a reference price, for a fixed size and for both contracts of a balance book.
+Docker lifecycle and credential-isolation checks passed, including with the
+final kit's launcher. The kit's journal, configuration and Gateway bytecode
+match 0.5.0 exactly; the published 0.5.0, 0.4.3 and 0.4.2 kits upgrade and roll
+back directly, the 0.3.0 through 0.4.1 kits pass the reviewed compatibility
+check in both directions, as do 0.2.0 and 0.1.12. No market entry was sent to a
+real Gateway or IBKR account for this release; no running installation was
+updated and no broker orders were placed.
+
+## Retained from 0.5.0 — browser setup console (preview)
 
 - **Set up in your browser.** `./follow-stack console` opens a private page,
   reached through your SSH connection, for the same steps as
@@ -30,15 +76,6 @@ dependencies and the Gateway image are unchanged.
   code are identical to 0.4.3. 0.3.0 through 0.4.1 upgrade through the reviewed
   migration, which also brings the 1.0 `risk.max_margin_fraction` default; 0.2.0
   and 0.1.12 keep their reviewed upgrade paths.
-
-## Update to 0.5.0
-
-From 0.4.3, 0.4.2, 0.4.1, 0.4.0, 0.3.2, 0.3.1, 0.3.0, 0.2.0 or 0.1.12, follow [UPGRADE.md](UPGRADE.md):
-stop the executor from the old directory while the account has no blocking
-positions or working orders, keep Gateway logged in, extract 0.5.0 into a new
-directory and run `./follow-stack upgrade --from <old directory>`. Both services
-stay stopped. From 0.3.0 or later, skip choosing the leverage fraction; your
-sizing is kept.
 
 ## Validation and scope (0.5.0)
 

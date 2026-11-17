@@ -60,7 +60,7 @@ Discord sends one position message per contract.
 
 | Leader target | Executor |
 | --- | --- |
-| new position, before `entry.deadline` | margin check, then a marketable limit at `reference_price` ± `max_entry_slippage_points` (a market order if the price is null) |
+| new position, before `entry.deadline` | margin check, then a market order, with no cap on the entry price |
 | new position, after the deadline | stays flat for this trade |
 | your entry fills | places a stop at once: `stop_atr` × `atr` from your fill |
 | `protective_stop` known or moved | moves your stop to that price, up or down |
@@ -175,7 +175,7 @@ transmits an executable order (IBKR what-if requests are simulations).
 | `sizing.mode`, `sizing.leverage_fraction` | — | `balance` and `f`, above 0 and at most 1; omit `instrument` |
 | `instrument.root`, `instrument.quantity` | — | without `sizing`: `NQ` or `MNQ`, and your fixed size |
 | `risk.max_quantity` | 10 | a cap on `quantity`, or on each balance order (at most 100) |
-| `risk.max_entry_slippage_points` | 10 | limit-price cap when `reference_price` is present |
+| `risk.max_entry_slippage_points` | 10 | no longer used since 0.5.1 (entries are market orders); a config that sets it still loads |
 | `risk.max_margin_fraction` | 1.0 | initial margin after entry ÷ equity |
 | `risk.max_stop_risk_usd` | null | optional ceiling on size × multiplier × stop distance |
 | `feed.clock_exit_grace_seconds` | 30 | delay before the exit-plan fallback |

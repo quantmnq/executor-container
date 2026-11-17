@@ -72,7 +72,6 @@ class View:
     now: datetime
     target: Target | None
     quantity: int
-    slippage_points: float
     clock_exit_grace: timedelta
     position: int = 0
     position_contract: FutureContract | None = None
@@ -102,17 +101,7 @@ def order_ref(purpose: str, target: Target | None) -> str:
 def entry_request(view: View, target: Target, contract: FutureContract) -> OrderRequest:
     assert target.entry is not None
     action = "BUY" if target.direction > 0 else "SELL"
-    reference = target.entry.reference_price
-    if reference is None:
-        return OrderRequest("entry", contract, action, "MKT", view.quantity, order_ref("entry", target))
-    limit = (
-        round_up(reference + view.slippage_points)
-        if action == "BUY"
-        else round_down(reference - view.slippage_points)
-    )
-    return OrderRequest(
-        "entry", contract, action, "LMT", view.quantity, order_ref("entry", target), limit_price=limit
-    )
+    return OrderRequest("entry", contract, action, "MKT", view.quantity, order_ref("entry", target))
 
 
 def exit_request(position: int, contract: FutureContract, target: Target | None) -> OrderRequest:

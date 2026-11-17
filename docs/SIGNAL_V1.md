@@ -80,9 +80,10 @@ parameters; act on the values in each signal.
 - `entry.deadline`: a flat follower may not open this position after it.
   Joining late never opens a stale trade.
 - `entry.reference_price`: the NQ close of the leader's completed decision
-  bar, for capping your entry price. It is null for a position the leader
-  adopted rather than entered, and was null on all live entries before
-  2026-10-02.
+  bar. This executor sizes balance trades from it; since 0.5.1 it no longer
+  caps the entry price, and entries are market orders. It is null for a
+  position the leader adopted rather than entered, and was null on all live
+  entries before 2026-10-02.
 - `entry.atr` × `entry.stop_atr`: the stop distance the leader sizes from its
   own fill. It is useful before the leader's absolute stop arrives.
 - `protective_stop.price`: the leader's absolute stop. It is null until the

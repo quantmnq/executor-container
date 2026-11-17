@@ -14,7 +14,6 @@
   "instrument": {"root": "MNQ", "quantity": 1},
   "risk": {
     "max_quantity": 10,
-    "max_entry_slippage_points": 10,
     "max_margin_fraction": 1.0,
     "max_stop_risk_usd": null
   },

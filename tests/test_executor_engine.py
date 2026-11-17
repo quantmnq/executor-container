@@ -23,7 +23,7 @@ def order(order_id: int, purpose: str, *, action: str = "SELL", order_type: str 
 
 
 def view(signal, **changes) -> View:
-    base = View(now=T0 + timedelta(seconds=1), target=signal, quantity=2, slippage_points=10.0,
+    base = View(now=T0 + timedelta(seconds=1), target=signal, quantity=2,
                 clock_exit_grace=timedelta(seconds=30), target_contract=CONTRACT)
     return replace(base, **changes)
 
@@ -45,11 +45,11 @@ class EntryTests(unittest.TestCase):
                          ("BUY", "MKT", 2))
         self.assertEqual(place.request.order_ref, "fx:entry:1")
 
-    def test_reference_price_gives_a_capped_marketable_limit_on_the_tick(self) -> None:
+    def test_a_reference_price_still_enters_at_market_without_a_price_cap(self) -> None:
         long = decide(view(target(1, "entry", reference=30780.1)))[1].request
-        self.assertEqual((long.order_type, long.limit_price), ("LMT", 30790.25))
+        self.assertEqual((long.action, long.order_type, long.limit_price), ("BUY", "MKT", None))
         short = decide(view(target(1, "entry", "short", leg="bounce", reference=30780.1)))[1].request
-        self.assertEqual((short.action, short.limit_price), ("SELL", 30770.0))
+        self.assertEqual((short.action, short.order_type, short.limit_price), ("SELL", "MKT", None))
 
     def test_entry_deadline_and_trade_history_block_entries(self) -> None:
         signal = target(1, "entry")
@@ -63,7 +63,7 @@ class EntryTests(unittest.TestCase):
 
     def test_a_working_entry_is_not_duplicated_and_is_cancelled_after_the_deadline(self) -> None:
         signal = target(1, "entry", reference=30780.0)
-        entry = order(5, "entry", action="BUY", order_type="LMT")
+        entry = order(5, "entry", action="BUY", order_type="MKT")
         trades = {5: signal.trade_key}
         self.assertEqual(decide(view(signal, entries=(entry,), order_trades=trades, trade_status="entering")), [])
         late = view(signal, entries=(entry,), order_trades=trades, trade_status="entering",
@@ -72,7 +72,7 @@ class EntryTests(unittest.TestCase):
 
     def test_partial_fill_at_the_deadline_is_protected_and_the_rest_cancelled(self) -> None:
         signal = target(1, "entry", reference=30780.0)
-        entry = order(5, "entry", action="BUY", order_type="LMT", filled=1)
+        entry = order(5, "entry", action="BUY", order_type="MKT", filled=1)
         actions = decide(view(signal, entries=(entry,), order_trades={5: signal.trade_key},
                               trade_status="entering", position=1, position_contract=CONTRACT,
                               entry_price=30780.0, now=signal.entry.deadline + timedelta(seconds=1)))

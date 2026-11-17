@@ -255,7 +255,7 @@ class BookEntryTests(BookTestCase):
         self.executor.on_signal(signal)
         self.executor.step()
         # 6 x 0.5 x 250,000 / 42,000 = 17.86 -> base 17 -> 1 NQ + 7 MNQ.
-        self.assertEqual(self.entries(), [("MNQ", 7, "LMT", 21010.0), ("NQ", 1, "LMT", 21010.0)])
+        self.assertEqual(self.entries(), [("MNQ", 7, "MKT", None), ("NQ", 1, "MKT", None)])
         self.settle()
         self.assertEqual(self.broker.held(), {"NQ": 1, "MNQ": 7})
         self.assertEqual(self.journal.trade_status(signal.trade_key), "entered")
@@ -276,7 +276,7 @@ class BookEntryTests(BookTestCase):
     def test_weight_sets_units_and_small_trades_use_only_mnq(self) -> None:
         self.executor.on_signal(self.entry(weight=0.4))  # 17 x 0.4 = 6.8 -> 7 MNQ
         self.settle()
-        self.assertEqual(self.entries(), [("MNQ", 7, "LMT", 21010.0)])
+        self.assertEqual(self.entries(), [("MNQ", 7, "MKT", None)])
         self.assertEqual(self.broker.held(), {"MNQ": 7})
         self.assertEqual([stop[:2] for stop in self.stops()], [("MNQ", 7)])
 
@@ -313,7 +313,7 @@ class BookEntryTests(BookTestCase):
         self.assertEqual(self.broker.held(), {"MNQ": 7})
         self.assertEqual(self.stops(), [("MNQ", 7, 20900.0)])
         self.assertIsNone(self.journal.halt_reason())
-        self.assertEqual(self.entries(), [("MNQ", 7, "LMT", 21010.0), ("NQ", 1, "LMT", 21010.0)])
+        self.assertEqual(self.entries(), [("MNQ", 7, "MKT", None), ("NQ", 1, "MKT", None)])
 
         self.clock.now = PREOPEN
         self.settle()

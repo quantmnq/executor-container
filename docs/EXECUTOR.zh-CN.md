@@ -28,7 +28,7 @@
 
 | 领单方目标或事件 | 执行器的行为 |
 | --- | --- |
-| 新持仓，且尚未超过 `entry.deadline` | 先检查保证金，再以 `reference_price` ± `max_entry_slippage_points` 提交可立即成交的限价单；参考价为 null 时使用市价单 |
+| 新持仓，且尚未超过 `entry.deadline` | 先检查保证金，再提交市价单，不限制入场价格 |
 | 新持仓，但已超过截止时间 | 本次交易保持空仓 |
 | 你的入场单成交 | 立即设置止损，止损价与成交价的距离为 `stop_atr` × `atr` |
 | `protective_stop` 已知或发生变化 | 将你的止损移至该价格，可能上调，也可能下调 |
@@ -80,7 +80,7 @@
 | `sizing.mode`, `sizing.leverage_fraction` | — | `balance` 和 `f`（大于 0 且不超过 1）；此时不写 `instrument` |
 | `instrument.root`, `instrument.quantity` | — | 无 `sizing` 时：品种 `NQ` 或 `MNQ`，以及固定合约数量 |
 | `risk.max_quantity` | 10 | `quantity` 或每笔余额仓位订单的上限，最大为 100 |
-| `risk.max_entry_slippage_points` | 10 | 存在 `reference_price` 时，用于设置限价范围 |
+| `risk.max_entry_slippage_points` | 10 | 自 0.5.1 起不再使用（入场均为市价单）；已设置该项的配置仍可正常加载 |
 | `risk.max_margin_fraction` | 1.0 | 入场后的初始保证金 ÷ 账户净值 |
 | `risk.max_stop_risk_usd` | null | 可选上限：数量 × 合约乘数 × 止损距离 |
 | `feed.clock_exit_grace_seconds` | 30 | 启用备用退出计划前的延迟秒数 |
